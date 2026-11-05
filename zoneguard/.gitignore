@@ -1,0 +1,22 @@
+# secrets
+.env
+*.env.local
+# large / third-party assets (downloaded by scripts/download_models.sh and scripts/download_samples.sh)
+models/*.onnx
+samples/*.avi
+samples/*.mp4
+# runtime data
+data/
+backend/data/
+*.sqlite3
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+# node
+frontend/node_modules/
+frontend/.next/
+frontend/test-results/
+frontend/playwright-report/
+frontend/next-env.d.ts

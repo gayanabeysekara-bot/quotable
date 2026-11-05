@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zoneguard-vision"
+version = "0.1.0"
+description = "ZoneGuard AI shared computer-vision pipeline (detection, anonymous tracking, zone geometry)"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "opencv-python-headless>=4.9",
+  "onnxruntime>=1.17",
+]
+
+[tool.setuptools.packages.find]
+include = ["zoneguard_vision*"]
