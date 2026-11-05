@@ -63,7 +63,7 @@ def _me(db: Session, user: User) -> MeOut:
 @router.post("/register", response_model=MeOut, status_code=201)
 def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
     """Self-service organisation registration. The registering user becomes org administrator."""
-    enforce(request, "register", 5, 3600)
+    enforce(request, "register", get_settings().rate_limit_register_per_hour, 3600)
     try:
         validate_password_strength(body.password)
     except ValueError as e:

@@ -1,0 +1,66 @@
+# Local development stack. NOT a production deployment — see docs/DEPLOYMENT.md.
+# Usage:  cp .env.example .env  (set ZG_ENCRYPTION_KEYS and POSTGRES_PASSWORD)
+#         ./scripts/download_models.sh
+#         docker compose up --build
+name: zoneguard
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zoneguard
+      POSTGRES_USER: zoneguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zoneguard"]
+      interval: 5s
+      retries: 10
+    # Not published to the host: only reachable from the compose network.
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["127.0.0.1:8025:8025"]   # web UI to read test alert emails (localhost only)
+
+  api:
+    image: zoneguard-api:local
+    build: { context: ., dockerfile: backend/Dockerfile }
+    env_file: .env
+    environment:
+      ZG_DATABASE_URL: postgresql+psycopg://zoneguard:${POSTGRES_PASSWORD}@db:5432/zoneguard
+      ZG_SMTP_HOST: mailpit
+      ZG_SMTP_PORT: "1025"
+      ZG_EMAIL_BACKEND: smtp
+      ZG_STORAGE_DIR: /data/uploads   # container paths override the host-oriented values in .env
+      ZG_MODEL_DIR: /models
+    volumes:
+      - ./models:/models:ro
+      - uploads:/data/uploads
+    depends_on:
+      db: { condition: service_healthy }
+    # Not published: the dashboard proxies /api to it.
+
+  web:
+    image: zoneguard-web:local
+    build: { context: frontend, args: { ZG_BACKEND_URL: "http://api:8000" } }
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+
+  edge:
+    profiles: ["edge"]   # docker compose --profile edge up edge
+    image: zoneguard-edge:local
+    build: { context: ., dockerfile: edge_agent/Dockerfile }
+    environment:
+      ZG_EDGE_API_URL: http://api:8000
+      ZG_EDGE_TOKEN: ${ZG_EDGE_TOKEN:-}
+      ZG_EDGE_ALLOW_INSECURE_HTTP: "true"   # compose-internal network only
+      ZG_EDGE_PERSON_MODEL: ${ZG_EDGE_PERSON_MODEL:-yolox_tiny}
+    volumes:
+      - ./models:/models:ro
+      - edgedata:/data
+    depends_on: [api]
+
+volumes:
+  pgdata: {}
+  uploads: {}
+  edgedata: {}

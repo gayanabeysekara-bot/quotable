@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ZG_", env_file=".env", extra="ignore")
 
     environment: str = "development"  # development | test | production
-    database_url: str = "postgresql+psycopg://zoneguard:zoneguard_dev@localhost:5432/zoneguard"
+    database_url: str = "postgresql+psycopg://zoneguard@localhost:5432/zoneguard"  # set ZG_DATABASE_URL
     # Comma-separated Fernet keys. First key encrypts; all keys decrypt (supports rotation).
     encryption_keys: str = Field(default="", repr=False)
     public_base_url: str = "http://localhost:3000"
@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     email_from: str = "ZoneGuard AI <alerts@zoneguard.local>"
 
     rate_limit_login_per_minute: int = 10
+    rate_limit_register_per_hour: int = 5
     rate_limit_default_per_minute: int = 600
     retention_sweep_interval_s: int = 3600
     run_background_tasks: bool = True

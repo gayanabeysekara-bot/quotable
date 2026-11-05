@@ -12,3 +12,7 @@ pyotp==2.9.0
 python-multipart==0.0.20
 psutil==7.0.0
 tzdata==2025.2
+# computer vision (also declared, unpinned, by zoneguard-vision)
+numpy==2.5.4
+opencv-python-headless==5.0.0.93
+onnxruntime==1.31.1

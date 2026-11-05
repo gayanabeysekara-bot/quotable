@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+**/data
+models/*.onnx
+samples
+.env
+**/.env
+frontend/test-results
+evaluation/reports

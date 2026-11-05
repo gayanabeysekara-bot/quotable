@@ -97,3 +97,30 @@ def test_encryption_key_rotation(monkeypatch):
     finally:
         monkeypatch.setattr(s, "encryption_keys", old)
         security.reset_crypto_cache()
+
+
+def test_cli_rotate_keys(admin: Api, monkeypatch, capsys):
+    from app import cli, security
+    from app.config import get_settings
+
+    site = create_site(admin)
+    cam = admin.post("org:/cameras", json={"site_id": site["id"], "name": "Gate", "source_type": "rtsp",
+                                           "stream_url": "rtsp://10.0.0.9/s", "password": "pw-1"}).json()
+    s = get_settings()
+    old = s.encryption_keys
+    new_key = Fernet.generate_key().decode()
+    monkeypatch.setattr(s, "encryption_keys", f"{new_key},{old}")
+    security.reset_crypto_cache()
+    try:
+        assert cli.main(["rotate-keys"]) == 0
+        monkeypatch.setattr(s, "encryption_keys", new_key)
+        security.reset_crypto_cache()
+        db = session_factory()()
+        from app.models import Camera
+
+        row = db.get(Camera, uuid.UUID(cam["id"]))
+        assert security.decrypt_secret(row.password_enc) == "pw-1"
+        db.close()
+    finally:
+        monkeypatch.setattr(s, "encryption_keys", old)
+        security.reset_crypto_cache()
