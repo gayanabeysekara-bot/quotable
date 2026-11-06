@@ -1,0 +1,1549 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}[hidden]{display:none!important}</style></head><body>
+<title>Gateflow · Sanjai International</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D airport; frosted panels float at the edges like a strategy-game HUD.
+   One world, two lighting moods: tokens flip with the in-app day/night toggle (body.night). */
+:root{
+  --accent:#FF6A1A; --accent-soft:rgba(255,106,26,.14); --accent-ink:#C24D0B;
+  --paper:#F6F1EA; --ink:#27221D; --muted:#80766B; --faint:#B3A99D;
+  --glass:rgba(255,251,246,.68); --glass-strong:rgba(255,251,246,.9);
+  --line:rgba(39,34,29,.10); --hover:rgba(39,34,29,.05);
+  --ok:#2C9B67; --warn:#D2930A; --crit:#D6423A; --info:#3A7EA6;
+  --shadow:0 12px 32px rgba(70,45,20,.13),0 1px 0 rgba(255,255,255,.7) inset;
+  --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --f-body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:14px; --gap:12px;
+  color-scheme:light;
+}
+body.night{
+  --paper:#15141A; --ink:#F3EDE5; --muted:#A99F94; --faint:#6E665E;
+  --glass:rgba(26,24,30,.64); --glass-strong:rgba(30,28,34,.92);
+  --line:rgba(255,240,225,.12); --hover:rgba(255,255,255,.06); --accent-soft:rgba(255,106,26,.2);
+  --shadow:0 12px 32px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.06) inset;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--paper);color:var(--ink);font:14px/1.4 var(--f-body);-webkit-font-smoothing:antialiased;touch-action:none;transition:background .6s}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#stage{position:fixed;inset:0}
+#c{display:block;width:100%;height:100%;cursor:grab}
+#c.grabbing{cursor:grabbing}
+#flash{position:fixed;inset:0;background:#EEF2FF;opacity:0;pointer-events:none}
+.glass{background:var(--glass);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* top bar */
+.topbar{position:fixed;z-index:20;top:calc(10px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;align-items:center;gap:14px;padding:8px 10px 8px 12px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand b{font:700 18px/1 var(--f-display);letter-spacing:-.01em;display:block}
+.brand span{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.search{position:relative;flex:0 1 250px;min-width:120px}
+.search input{width:100%;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--hover);padding:0 10px 0 32px;color:var(--ink);font:inherit;font-size:13px}
+.search input::placeholder{color:var(--muted)}
+.search svg{position:absolute;left:10px;top:10px;opacity:.6}
+.areas{display:flex;gap:2px;padding:3px;border-radius:11px;background:var(--hover);border:1px solid var(--line)}
+.areas button{padding:6px 11px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap}
+.areas button:hover{color:var(--ink)}
+.areas button.on{background:var(--glass-strong);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.areas button.on::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px}
+.tools{margin-left:auto;display:flex;align-items:center;gap:8px}
+.chip{display:flex;align-items:center;gap:7px;height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--line);font-size:12.5px}
+.chip:hover,.iconbtn:hover{background:var(--hover)}
+.chip .t{font-weight:600}
+.iconbtn{position:relative;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center}
+.iconbtn i{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;border-radius:9px;background:var(--accent);color:#fff;font:600 10px/17px var(--f-body);font-style:normal;padding:0 4px}
+.clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;padding:0 4px}
+.clock b{font:500 17px var(--f-mono);font-variant-numeric:tabular-nums}
+.clock span{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.user{display:flex;align-items:center;gap:8px;padding-left:6px;border-left:1px solid var(--line)}
+.user .av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font:700 12px var(--f-display)}
+.user b{display:block;font-size:12.5px;font-weight:600}
+.user span{font-size:11px;color:var(--muted);white-space:nowrap}
+.wrap{position:relative}
+.pop{position:absolute;top:calc(100% + 8px);right:0;z-index:40;min-width:270px;padding:10px;background:var(--glass-strong);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.search .pop{left:0;right:auto;width:100%;min-width:260px;max-height:320px;overflow:auto;padding:6px}
+.pop h4{margin:2px 4px 8px;font:600 12px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.res{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:7px 8px;border-radius:8px;font-size:13px}
+.res:hover,.res.hl{background:var(--accent-soft)}
+.res span{color:var(--muted);font-size:11.5px}
+.seasons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.season{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);text-align:left}
+.season b{font-size:13px;font-weight:600}
+.season span{font-size:11px;color:var(--muted)}
+.season.on{border-color:var(--accent);background:var(--accent-soft)}
+.metar{margin-top:10px;padding:8px 10px;border-radius:9px;background:var(--hover);font:11.5px/1.45 var(--f-mono);word-break:break-word}
+.wxgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.wxgrid div{padding:6px 8px;border-radius:8px;border:1px solid var(--line)}
+.wxgrid b{display:block;font:500 14px var(--f-mono)}
+.wxgrid span{font-size:10.5px;color:var(--muted)}
+#alList{list-style:none;margin:0;padding:0;max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+#alList li{display:grid;grid-template-columns:8px 1fr auto;gap:9px;align-items:start;padding:8px;border-radius:9px;font-size:12.5px}
+#alList li:hover{background:var(--hover)}
+#alList li::before{content:"";width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--info)}
+#alList li.warn::before{background:var(--warn)} #alList li.crit::before{background:var(--crit)} #alList li.ok::before{background:var(--ok)}
+#alList time{font:11px var(--f-mono);color:var(--muted)}
+
+/* KPIs */
+.kpis{position:fixed;z-index:10;top:calc(76px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));display:flex;gap:var(--gap)}
+.kpi{width:188px;padding:11px 13px 10px}
+.kpi .v{display:flex;align-items:baseline;gap:6px;margin-top:3px}
+.kpi .v b{font:700 26px/1 var(--f-display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:12px;color:var(--muted)}
+.kpi .d{font-size:11.5px;margin-top:4px;color:var(--muted)}
+.kpi .d .up{color:var(--ok);font-weight:600} .kpi .d .dn{color:var(--crit);font-weight:600}
+.kpi svg{display:block;width:100%;height:26px;margin-top:6px}
+
+/* panels */
+#sheet{display:contents}
+.sheet-head{display:none}
+.panel{position:fixed;z-index:10;display:flex;flex-direction:column;min-height:0}
+#detail{top:calc(76px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));width:310px;bottom:calc(252px + env(safe-area-inset-bottom,0px));overflow:auto;padding:14px}
+#tracker{left:max(12px,env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));width:300px;height:228px;padding:12px 14px}
+#live{left:calc(max(12px,env(safe-area-inset-left,0px)) + 312px);right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));height:228px;padding:10px 12px 8px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.ph h3{margin:0;font:700 15px var(--f-display);letter-spacing:-.005em}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:var(--hover);color:var(--muted);white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok);background:rgba(44,155,103,.12)} .pill.warn{color:var(--warn);background:rgba(210,147,10,.13)}
+.pill.crit{color:var(--crit);background:rgba(214,66,58,.12)} .pill.info{color:var(--info);background:rgba(58,126,166,.12)}
+.pill.acc{color:var(--accent-ink);background:var(--accent-soft)}
+body.night .pill.acc{color:#FF9B62}
+.d-title{font:700 24px/1.05 var(--f-display);letter-spacing:-.02em;margin:6px 0 2px;text-wrap:balance}
+.d-sub{color:var(--muted);font-size:12.5px}
+.d-hero{display:flex;gap:8px;margin:12px 0}
+.d-hero div{flex:1;padding:8px 10px;border-radius:10px;background:var(--hover)}
+.d-hero b{display:block;font:500 17px var(--f-mono);font-variant-numeric:tabular-nums}
+.d-hero span{font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:12.5px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.bar{height:6px;border-radius:4px;background:var(--hover);overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .4s}
+.d-note{margin-top:12px;padding:9px 10px;border-radius:10px;border:1px dashed var(--line);font-size:12px;color:var(--muted)}
+.d-actions{display:flex;gap:6px;margin-top:12px}
+.btn{flex:1;height:32px;border-radius:9px;border:1px solid var(--line);font-size:12.5px;font-weight:600}
+.btn:hover{background:var(--hover)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{filter:brightness(1.05);background:var(--accent)}
+
+/* tracker */
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0}
+.steps li{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;position:relative}
+.steps li .dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--faint);background:var(--glass-strong);position:relative;z-index:1;margin-left:2px}
+.steps li:not(:last-child)::after{content:"";position:absolute;left:8px;top:19px;height:calc(100% - 12px);width:2px;background:var(--line)}
+.steps li.done .dot{background:var(--ok);border-color:var(--ok)}
+.steps li.done{color:var(--muted)}
+.steps li.active .dot{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);animation:pulse 1.4s infinite}
+.steps li.active{font-weight:600}
+.steps li time{font:12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.steps li.active time{color:var(--accent-ink)} body.night .steps li.active time{color:#FF9B62}
+@keyframes pulse{50%{box-shadow:0 0 0 7px transparent}}
+.trk-foot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+
+/* live table */
+.tabs{display:flex;gap:2px}
+.tabs button{padding:5px 10px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--muted)}
+.tabs button.on{color:var(--ink);background:var(--hover)}
+.tabs button .n{font:11px var(--f-mono);margin-left:4px;color:var(--faint)}
+.tbl-wrap{flex:1;min-height:0;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;background:var(--glass-strong);text-align:left;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:6px 8px;z-index:1}
+td{padding:5px 8px;border-top:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+td.m{font-family:var(--f-mono);font-size:12px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--hover)}
+tbody tr.sel{background:var(--accent-soft)}
+
+/* 3D tag + toast */
+#selLabel{position:fixed;z-index:5;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;padding:6px 10px 6px 9px;border-radius:10px;background:var(--glass-strong);border:1px solid var(--line);box-shadow:var(--shadow);white-space:nowrap;font-size:12px;display:flex;gap:7px;align-items:center}
+#selLabel::after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:var(--glass-strong);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+#selLabel b{font:700 13px var(--f-display)}
+#selLabel .sw{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+#selLabel span{color:var(--muted)}
+#toast{position:fixed;z-index:50;top:calc(76px + env(safe-area-inset-top,0px));left:50%;transform:translate(-50%,-12px);opacity:0;transition:.3s;pointer-events:none;padding:9px 14px;border-radius:12px;font-size:13px;display:flex;gap:8px;align-items:center;max-width:min(460px,calc(100% - 32px))}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast .pill{flex:none}
+.hint{position:fixed;z-index:9;left:50%;transform:translateX(-50%);bottom:calc(252px + env(safe-area-inset-bottom,0px));font-size:11.5px;color:var(--muted);padding:5px 11px;border-radius:20px;transition:opacity 1s}
+
+@media (max-width:1180px){ .user div{display:none} .brand span{display:none} }
+@media (max-width:980px){ .kpi{width:160px} .kpi .v b{font-size:22px} .search{flex-basis:180px} }
+
+/* mobile: panels move into a bottom sheet */
+@media (max-width:820px){
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px}
+  .brand{order:1} .tools{order:2;gap:6px} .search{order:3;flex:1 1 100%}
+  .areas{order:4;flex:1 1 100%;overflow-x:auto;scrollbar-width:none}
+  .areas::-webkit-scrollbar{display:none}
+  .areas button{flex:1}
+  .user,.clock span{display:none}
+  .chip .nm{display:none}
+  .kpis{top:calc(146px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));gap:6px}
+  .kpi{flex:1;width:auto;min-width:0;padding:8px 9px}
+  .kpi .v b{font-size:18px} .kpi svg,.kpi .d,.kpi .v small{display:none}
+  .kpi .eyebrow{font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sheet{display:flex;flex-direction:column;position:fixed;z-index:15;left:0;right:0;bottom:0;height:46%;padding:0 max(12px,env(safe-area-inset-left,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-right,0px));background:var(--glass);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border-top:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(60,40,20,.15);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  #sheet.min{transform:translateY(calc(100% - 92px - env(safe-area-inset-bottom,0px)))}
+  .sheet-head{display:block;padding:6px 0 8px}
+  #sheetGrip{display:block;width:100%;height:18px;position:relative}
+  #sheetGrip::before{content:"";position:absolute;left:50%;top:6px;width:42px;height:5px;border-radius:3px;background:var(--faint);transform:translateX(-50%)}
+  .sheet-tabs{display:flex;gap:4px;padding:3px;border-radius:11px;background:var(--hover)}
+  .sheet-tabs button{flex:1;padding:7px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
+  .sheet-tabs button.on{background:var(--glass-strong);color:var(--ink)}
+  .panel{position:static;width:auto!important;height:auto!important;flex:1;min-height:0;background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:4px 2px!important;display:none;overflow:auto}
+  .panel.act{display:flex}
+  #detail{display:none} #detail.act{display:block}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="stage"><canvas id="c" aria-label="3D view of Sanjai International Airport"></canvas></div>
+<div id="flash"></div>
+<div id="selLabel" hidden><i class="sw"></i><b id="slName"></b><span id="slSub"></span></div>
+
+<header class="topbar glass">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#FF6A1A"/><path d="M8 21.5c4.5-1 9.5-3.6 13-7.4l2.6-2.8c.9-1 2.4-.9 3 .2.4.8.2 1.7-.4 2.3l-3 2.7c-3.6 3.3-8.5 5.6-15.2 5z" fill="#fff"/><path d="M14.5 17.4l-3.2-4.6 2-.6 5 3zM16.6 20.6l1.4 4.4 1.7-.7-.6-5.2z" fill="#fff" opacity=".85"/><circle cx="9" cy="25.5" r="1.4" fill="#fff"/></svg>
+    <div><b>Gateflow</b><span>Sanjai International · SNJ</span></div>
+  </div>
+  <div class="search">
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <input id="q" type="search" placeholder="Search flight, stand, vehicle…" autocomplete="off" aria-label="Search airport objects">
+    <div id="qres" class="pop" hidden></div>
+  </div>
+  <nav class="areas" id="areas" aria-label="Area switcher">
+    <button data-area="terminal" class="on">Terminal</button><button data-area="cargo">Cargo</button><button data-area="hangar">Hangar</button><button data-area="runway">Runway</button><button data-area="landside">Landside</button>
+  </nav>
+  <div class="tools">
+    <div class="wrap">
+      <button id="wxBtn" class="chip" aria-haspopup="true"><svg id="wxIcon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"></svg><span class="t mono" id="wxTemp">31°</span><span class="nm" id="wxName">Summer</span></button>
+      <div id="wxPop" class="pop" hidden>
+        <h4>Season &amp; weather</h4>
+        <div class="seasons" id="seasons"></div>
+        <div class="wxgrid" id="wxGrid"></div>
+        <div class="metar" id="metar"></div>
+      </div>
+    </div>
+    <div class="clock"><b id="clk">--:--</b><span>SNJ local · sim ×40</span></div>
+    <div class="wrap">
+      <button id="alBtn" class="iconbtn" aria-label="Alerts"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8a4.2 4.2 0 0 0-4.2 4.2v2.6L2.5 11h11l-1.3-2.4V6A4.2 4.2 0 0 0 8 1.8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.3 13a1.8 1.8 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><i id="alCount" hidden>0</i></button>
+      <div id="alPop" class="pop" hidden><h4>Alerts</h4><ul id="alList"></ul></div>
+    </div>
+    <button id="dnBtn" class="iconbtn" aria-label="Toggle day and night"><svg id="dnIcon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"></svg></button>
+    <div class="user"><span class="av">NP</span><div><b>Nirosha Perera</b><span>Apron duty manager</span></div></div>
+  </div>
+</header>
+
+<section class="kpis" aria-label="Key performance indicators">
+  <div class="kpi glass"><div class="eyebrow">On-time departures</div><div class="v"><b id="kOtp">92.4</b><small>%</small></div><div class="d"><span class="up">▲ 1.8</span> vs last 7 days</div><svg id="spOtp" viewBox="0 0 160 26" preserveAspectRatio="none"></svg></div>
+  <div class="kpi glass"><div class="eyebrow">Avg turnaround</div><div class="v"><b id="kTat">41</b><small>min · target 45</small></div><div class="d" id="kTatD"><span class="up">▼ 4 min</span> under target</div><svg id="spTat" viewBox="0 0 160 26" preserveAspectRatio="none"></svg></div>
+  <div class="kpi glass"><div class="eyebrow">Movements · pax today</div><div class="v"><b id="kMov">146</b><small id="kPax">· 18,240 pax</small></div><div class="d"><span class="up">▲ 6%</span> vs same day last year</div><svg id="spMov" viewBox="0 0 160 26" preserveAspectRatio="none"></svg></div>
+</section>
+
+<div id="sheet" class="min">
+  <div class="sheet-head"><button id="sheetGrip" aria-label="Expand or collapse panel"></button>
+    <div class="sheet-tabs" id="sheetTabs"><button data-p="detail" class="on">Detail</button><button data-p="tracker">Turnaround</button><button data-p="live">Live</button></div></div>
+  <aside id="detail" class="panel glass act" aria-live="polite"></aside>
+  <section id="tracker" class="panel glass">
+    <div class="ph"><h3>Turnaround</h3><span class="pill acc" id="trkTag">A3 · SJ 412</span></div>
+    <ol class="steps" id="steps"></ol>
+    <div class="trk-foot"><span id="trkL">Target 40 min</span><span class="mono" id="trkR">T+00:00</span></div>
+  </section>
+  <section id="live" class="panel glass">
+    <div class="ph"><div class="tabs" id="tabs"><button data-t="stands" class="on">Stands<span class="n" id="nStands"></span></button><button data-t="vehicles">Vehicles<span class="n" id="nVeh"></span></button><button data-t="flights">Flights<span class="n" id="nFl"></span></button></div><span class="pill ok">Live</span></div>
+    <div class="tbl-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  </section>
+</div>
+<div class="hint glass" id="hint">Drag to pan · right-drag to rotate · scroll to zoom · click anything</div>
+<div id="toast" class="glass"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============ core: renderer, scene, materials, helpers, camera controls ============ */
+const V3 = THREE.Vector3, C = THREE.Color;
+const $ = s => document.querySelector(s);
+const isMobile = matchMedia('(max-width: 820px)').matches;
+const ACC = 0xFF6A1A;
+const SIMX = 40;              // sim seconds per real second
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[(Math.random() * a.length) | 0];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+
+const canvas = $('#c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.6 : 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new C(0xEFE6DA);
+scene.fog = new THREE.Fog(0xEFE6DA, 380, 900);
+const camera = new THREE.PerspectiveCamera(30, 1, 1, 2500);
+
+const hemi = new THREE.HemisphereLight(0xFFF4E6, 0xB59C80, 0.75);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xFFF0DD, 1.6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(isMobile ? 2048 : 4096, isMobile ? 2048 : 4096);
+const sc = sun.shadow.camera; sc.left = -190; sc.right = 190; sc.top = 150; sc.bottom = -150; sc.near = 10; sc.far = 600;
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04; sun.shadow.radius = 3;
+scene.add(sun); scene.add(sun.target);
+
+/* materials (cached by key) */
+const MATS = {};
+function mat(color, o = {}) {
+  const key = color + JSON.stringify(o);
+  if (MATS[key]) return MATS[key];
+  const m = new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.82, metalness: 0.0 }, o));
+  return (MATS[key] = m);
+}
+const M = {
+  white: mat(0xF4EFE7), shell: mat(0xFBF8F3, { roughness: 0.55 }), warm: mat(0xD9CFC2), stone: mat(0xC4B9AB),
+  dark: mat(0x3B3734, { roughness: 0.6 }), rubber: mat(0x2B2826, { roughness: 0.9 }), acc: mat(ACC, { roughness: 0.6 }),
+  metal: mat(0xB9B4AD, { roughness: 0.4, metalness: 0.5 }), wood: mat(0x8A6A4F),
+  grass: mat(0xB9C79A, { roughness: 1 }), grass2: mat(0xA9BC8A, { roughness: 1 }),
+  apron: mat(0xC9C1B6, { roughness: 0.9 }), asphalt: mat(0x6B6662, { roughness: 0.9 }), road: mat(0x77716B, { roughness: 0.9 }),
+  paint: mat(0xFFFFFF, { roughness: 0.7 }), yellow: mat(0xF2C230, { roughness: 0.7 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x9FC4D2, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.78, emissive: 0xFFB45E, emissiveIntensity: 0 }),
+  cockpit: new THREE.MeshStandardMaterial({ color: 0x2E3A44, roughness: 0.2, metalness: 0.4 }),
+  window: new THREE.MeshStandardMaterial({ color: 0x33414B, roughness: 0.3, emissive: 0xFFC277, emissiveIntensity: 0 }),
+  rwyLight: new THREE.MeshStandardMaterial({ color: 0xFFF6DA, emissive: 0xFFE7A8, emissiveIntensity: 0.4 }),
+  twyLight: new THREE.MeshStandardMaterial({ color: 0x9FD9C8, emissive: 0x46D6A8, emissiveIntensity: 0.3 }),
+  redLight: new THREE.MeshStandardMaterial({ color: 0xFF4B3A, emissive: 0xFF2A1A, emissiveIntensity: 1.2 }),
+  lamp: new THREE.MeshStandardMaterial({ color: 0xFFF3DE, emissive: 0xFFD7A0, emissiveIntensity: 0.1 }),
+  leaf: mat(0x7FA36A, { roughness: 1 }), leaf2: mat(0x93B276, { roughness: 1 }), palm: mat(0x6E9A5C, { roughness: 1, side: THREE.DoubleSide }),
+  trunk: mat(0x9A7B5E), roof: mat(0xEDE6DC, { roughness: 0.75 }),
+};
+M.glass.userData.night = 1.15; M.window.userData.night = 1.3;
+
+function add(geo, m, x, y, z, parent = scene, cast = true, recv = true) {
+  const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = cast; o.receiveShadow = recv; parent.add(o); return o;
+}
+const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+function box(w, h, d, m, x, y, z, p, cast, recv) { return add(B(w, h, d), m, x, y + h / 2, z, p, cast, recv); }
+function cyl(rt, rb, h, m, x, y, z, p, seg = 16) { return add(new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y + h / 2, z, p); }
+function flat(w, d, m, x, z, y = 0.02, p = scene) {
+  const o = add(new THREE.PlaneGeometry(w, d), m, x, y, z, p, false, true); o.rotation.x = -Math.PI / 2; return o;
+}
+function textTex(txt, { w = 512, h = 128, font = '700 72px "Bricolage Grotesque", sans-serif', color = '#27221D', bg = null, align = 'center' } = {}) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+  g.fillStyle = color; g.font = font; g.textAlign = align; g.textBaseline = 'middle';
+  g.fillText(txt, align === 'center' ? w / 2 : 16, h / 2 + 4);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+}
+function curve(pts, closed = false) {
+  const vs = [];
+  pts.map(p => p.isVector3 ? p : new V3(p[0], p[2] !== undefined ? p[1] : 0, p[2] !== undefined ? p[2] : p[1])).forEach(p => { if (!vs.length || vs[vs.length - 1].distanceTo(p) > 0.15) vs.push(p); });
+  if (vs.length < 2) vs.push(vs[0].clone().add(new V3(0.2, 0, 0.2)));
+  const c = new THREE.CatmullRomCurve3(vs, closed, 'centripetal');
+  c.arcLengthDivisions = 400; c.updateArcLengths(); c.len = c.getLength(); return c;
+}
+const P = (x, z, y = 0) => new V3(x, y, z);
+
+/* ============ selection registry ============ */
+const REG = [];           // {id,name,kind,sub,obj,radius,info(),aliases}
+function register(e) { e.radius = e.radius || 4; REG.push(e); e.obj.traverse(o => { o.userData.sel = e; }); return e; }
+
+/* ============ camera controls ============ */
+const ctl = {
+  t: new V3(0, 0, -15), r: 260, th: -0.62, ph: 0.92,          // current
+  gt: new V3(0, 0, -15), gr: 260, gth: -0.62, gph: 0.92,       // goal
+  follow: null,
+};
+function camApply() {
+  const sp = Math.sin(ctl.ph);
+  camera.position.set(ctl.t.x + ctl.r * sp * Math.sin(ctl.th), ctl.t.y + ctl.r * Math.cos(ctl.ph), ctl.t.z + ctl.r * sp * Math.cos(ctl.th));
+  camera.lookAt(ctl.t);
+}
+function camUpdate(dt) {
+  if (ctl.follow) { const p = ctl.follow.obj.getWorldPosition(new V3()); ctl.gt.set(p.x, Math.max(0, p.y * 0.85), p.z); }
+  const k = 1 - Math.exp(-dt * (ctl.follow ? 4 : 3.2));
+  ctl.t.lerp(ctl.gt, k); ctl.r = lerp(ctl.r, ctl.gr, k);
+  ctl.th += angDiff(ctl.th, ctl.gth) * k; ctl.ph = lerp(ctl.ph, ctl.gph, k);
+  camApply();
+}
+function flyTo(t, r, th, ph) { ctl.gt.copy(t); if (r) ctl.gr = r; if (th !== undefined) ctl.gth = th; if (ph !== undefined) ctl.gph = ph; }
+
+const ptrs = new Map(); let drag = null, pinch = null, downInfo = null;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  closePops();
+  if (ptrs.size === 1) {
+    drag = { x: e.clientX, y: e.clientY, mode: (e.button === 2 || e.shiftKey || e.ctrlKey) ? 'rot' : 'pan' };
+    downInfo = { x: e.clientX, y: e.clientY, t: performance.now() };
+  } else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()]; drag = null; downInfo = null;
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), a: Math.atan2(b.y - a.y, b.x - a.x), my: (a.y + b.y) / 2 };
+  }
+  canvas.classList.add('grabbing');
+});
+canvas.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), an = Math.atan2(b.y - a.y, b.x - a.x), my = (a.y + b.y) / 2;
+    ctl.gr = clamp(ctl.gr * pinch.d / d, 30, 520); ctl.r = ctl.gr;
+    ctl.gth -= angDiff(pinch.a, an); ctl.th = ctl.gth;
+    ctl.gph = clamp(ctl.gph - (my - pinch.my) * 0.004, 0.22, 1.32); ctl.ph = ctl.gph;
+    pinch = { d, a: an, my }; return;
+  }
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if (downInfo && Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) downInfo.moved = true;
+  if (drag.mode === 'rot') {
+    ctl.gth -= dx * 0.006; ctl.th = ctl.gth;
+    ctl.gph = clamp(ctl.gph - dy * 0.004, 0.22, 1.32); ctl.ph = ctl.gph;
+  } else if (downInfo && downInfo.moved) {
+    const s = ctl.r * 0.0016 * (isMobile ? 1.6 : 1);
+    const fx = Math.sin(ctl.th), fz = Math.cos(ctl.th);
+    const mx = -dx * fz - dy * fx, mz = dx * fx - dy * fz;   // screen right = (cos,−sin), screen up = −forward
+    ctl.gt.x += mx * s; ctl.gt.z += mz * s; ctl.t.x += mx * s; ctl.t.z += mz * s;
+    if (ctl.follow) ctl.follow = null;
+  }
+});
+function endPtr(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (ptrs.size === 0) {
+    canvas.classList.remove('grabbing');
+    if (downInfo && !downInfo.moved && performance.now() - downInfo.t < 500 && e.type === 'pointerup') pickAt(e.clientX, e.clientY);
+    drag = null; downInfo = null;
+  }
+}
+canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('wheel', e => { e.preventDefault(); ctl.gr = clamp(ctl.gr * Math.exp(e.deltaY * 0.0012), 30, 520); }, { passive: false });
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pickAt(x, y) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(REG.map(e => e.obj), true);
+  for (const h of hits) { if (h.object.userData.sel && h.object.visible) { select(h.object.userData.sel); return; } }
+}
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 42 : 30; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+/* ============ world: ground, runway, taxiways, terminal, tower, cargo, hangar, landside ============ */
+const GX = [-44, -22, 0, 22, 44], STAND_Z = -20, RWY_Z = -60, TWY_Z = -40;
+const LANE_OUT = -9.4, LANE_RET = -11.4;
+
+function ribbon(cv, w, m, y = 0.03, cast = false) {
+  const n = Math.max(8, Math.ceil(cv.len / 1.2)), pos = [], idx = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, p = cv.getPointAt(u), t = cv.getTangentAt(u);
+    const nx = -t.z, nz = t.x, l = Math.hypot(nx, nz) || 1;
+    pos.push(p.x + nx / l * w / 2, y, p.z + nz / l * w / 2, p.x - nx / l * w / 2, y, p.z - nz / l * w / 2);
+    if (i < n) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.castShadow = cast; scene.add(o); return o;
+}
+function instanced(geo, m, list, cast = true) {   // list: [{x,y,z,ry,s,sx,sy,sz,color}]
+  const im = new THREE.InstancedMesh(geo, m, list.length); const d = new THREE.Object3D();
+  list.forEach((p, i) => {
+    d.position.set(p.x, p.y || 0, p.z); d.rotation.set(p.rx || 0, p.ry || 0, p.rz || 0);
+    d.scale.set(p.sx || p.s || 1, p.sy || p.s || 1, p.sz || p.s || 1); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+    if (p.color !== undefined) im.setColorAt(i, new C(p.color));
+  });
+  im.castShadow = cast; im.receiveShadow = true; scene.add(im); return im;
+}
+
+/* ---- ground ---- */
+flat(1400, 1100, M.grass, 0, 0, 0);
+flat(270, 26, M.grass2, 0, RWY_Z, 0.005);                      // runway strip
+flat(256, 16, M.asphalt, 0, RWY_Z, 0.03);                      // runway
+flat(176, 9, M.asphalt, -26, TWY_Z, 0.03);                     // parallel taxiway
+flat(126, 28, M.apron, 1, -22, 0.025);                         // terminal apron
+flat(52, 46, M.apron, 112, -18, 0.025);                        // cargo apron
+flat(46, 36, M.apron, -100, -16, 0.025);                       // hangar apron
+flat(34, 10, M.apron, 73, -4, 0.026);                          // GSE yard
+flat(152, 4.6, M.road, 12, -10.4, 0.032);                      // airside service road
+flat(10, 20, M.apron, 112, -45, 0.024); flat(10, 6, M.apron, -100, -37, 0.024);
+const PATH = {};
+PATH.exit = [P(40, -60), P(50, -59.2), P(57, -54), P(58, -46.5), P(53.5, -40.6), P(47, -40)];
+PATH.west = [P(-96, -40), P(-107, -41.2), P(-113, -46), P(-115.5, -52), P(-112, -58), P(-105, -60), P(-99, -60)];
+ribbon(curve(PATH.exit), 10, M.asphalt, 0.031); ribbon(curve(PATH.west), 10, M.asphalt, 0.031);
+ribbon(curve(PATH.exit), 0.35, M.yellow, 0.045); ribbon(curve(PATH.west), 0.35, M.yellow, 0.045);
+box(176, 0.02, 0.35, M.yellow, -26, 0.035, TWY_Z, scene, false);
+// runway markings
+const dash = []; for (let x = -96; x <= 96; x += 12) dash.push({ x, y: 0.045, z: RWY_Z, sx: 6, sy: 1, sz: 0.5 });
+instanced(B(1, 0.02, 1), M.paint, dash, false);
+const keys = []; for (const sx of [-118, 118]) for (let i = 0; i < 8; i++) { const zz = RWY_Z - 6.3 + i * 1.8 + (i > 3 ? 1.4 : 0); keys.push({ x: sx, y: 0.045, z: zz, sx: 7, sy: 1, sz: 0.9 }); }
+for (const sx of [-80, 80]) for (const dz of [-3.5, 3.5]) keys.push({ x: sx, y: 0.045, z: RWY_Z + dz, sx: 12, sy: 1, sz: 1.6 });
+instanced(B(1, 0.02, 1), M.paint, keys, false);
+for (const [txt, x, rot] of [['09', -106, -Math.PI / 2], ['27', 106, Math.PI / 2]]) {
+  const m = new THREE.MeshBasicMaterial({ map: textTex(txt, { w: 256, h: 256, font: '700 190px "IBM Plex Mono", monospace', color: '#ffffff' }), transparent: true, depthWrite: false });
+  const o = flat(9, 9, m, x, RWY_Z, 0.05); o.rotation.z = rot;
+}
+box(256, 0.02, 0.3, M.paint, 0, 0.04, RWY_Z - 7.6, scene, false); box(256, 0.02, 0.3, M.paint, 0, 0.04, RWY_Z + 7.6, scene, false);
+// runway & taxiway lights
+const rl = []; for (let x = -124; x <= 124; x += 8) for (const dz of [-8.3, 8.3]) rl.push({ x, y: 0.25, z: RWY_Z + dz });
+for (let z = -7; z <= 7; z += 2) { rl.push({ x: -127, y: 0.25, z: RWY_Z + z }); rl.push({ x: 127, y: 0.25, z: RWY_Z + z }); }
+instanced(new THREE.SphereGeometry(0.28, 8, 6), M.rwyLight, rl, false);
+const appr = []; for (let x = -134; x >= -190; x -= 7) for (let z = -3; z <= 3; z += 1.5) appr.push({ x, y: 0.4, z: RWY_Z + z });
+instanced(new THREE.SphereGeometry(0.25, 6, 5), M.rwyLight, appr, false);
+const tl = []; for (let x = -110; x <= 58; x += 6) for (const dz of [-4.8, 4.8]) tl.push({ x, y: 0.2, z: TWY_Z + dz });
+instanced(new THREE.SphereGeometry(0.2, 6, 5), M.twyLight, tl, false);
+
+/* ---- stands: lead-in lines, numbers ---- */
+GX.forEach((gx, i) => {
+  ribbon(curve([P(gx + 9, -40), P(gx + 3, -38.4), P(gx + 0.3, -33), P(gx, -27), P(gx, -15.5)]), 0.3, M.yellow, 0.045);
+  box(5, 0.02, 0.4, M.paint, gx, 0.04, -14.6, scene, false);
+  const m = new THREE.MeshBasicMaterial({ map: textTex('A' + (i + 1), { w: 256, h: 128, font: '700 96px "Bricolage Grotesque", sans-serif', color: '#ffffff' }), transparent: true, depthWrite: false });
+  const o = flat(5, 2.5, m, gx - 3.5, -30, 0.05); o.rotation.z = Math.PI;
+  // safety zone box
+  for (const dx of [-11, 11]) box(0.25, 0.02, 24, M.acc, gx + dx, 0.035, -24, scene, false);
+});
+
+/* ---- terminal ---- */
+const term = new THREE.Group(); scene.add(term);
+box(120, 6.6, 17.4, M.warm, 0, 0, 2, term);
+box(117, 5.2, 0.35, M.glass, 0, 0.6, -6.95, term, false); box(117, 5.2, 0.35, M.glass, 0, 0.6, 10.95, term, false);
+const mull = []; for (let x = -58; x <= 58; x += 4) { mull.push({ x, y: 3.2, z: -7.1 }); mull.push({ x, y: 3.2, z: 11.1 }); }
+instanced(B(0.28, 5.4, 0.3), M.white, mull);
+box(126, 0.9, 23, M.roof, 0, 6.6, 2, term);
+box(126.2, 0.5, 0.35, M.acc, 0, 6.9, -9.55, term);
+box(40, 2.2, 9, M.glass, 0, 7.4, 2, term); box(41, 0.4, 10, M.roof, 0, 9.6, 2, term);
+for (const x of [-44, 44]) { box(18, 1.4, 8, M.white, x, 7.5, 2, term); }
+const signTex = textTex('SANJAI INTERNATIONAL', { w: 1024, h: 128, font: '700 78px "Bricolage Grotesque", sans-serif', color: '#27221D' });
+const sign = new THREE.Mesh(new THREE.PlaneGeometry(36, 4.5), new THREE.MeshStandardMaterial({ map: signTex, transparent: true, roughness: 0.6, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0 }));
+sign.position.set(0, 11.2, 6.6); term.add(sign); sign.material.userData.night = 0.7;
+box(37, 0.25, 0.25, M.acc, 0, 8.95, 6.6, term);
+// landside canopy + columns
+box(104, 0.45, 7, M.roof, 0, 4.6, 15.6, term);
+box(104.2, 0.3, 0.2, M.acc, 0, 4.7, 19.1, term);
+const cols = []; for (let x = -50; x <= 50; x += 10) cols.push({ x, y: 2.3, z: 18.4 });
+instanced(new THREE.CylinderGeometry(0.22, 0.22, 4.6, 8), M.white, cols);
+flat(108, 4.4, M.stone, 0, 14.6, 0.06);                 // pavement
+register({ id: 'term', name: 'Terminal 1', kind: 'Building', obj: term, focus: P(0, 2), radius: 60, aliases: 'T1 terminal' });
+
+/* ---- jet bridges ---- */
+const BRIDGES = GX.map((gx, i) => {
+  const g = new THREE.Group(); scene.add(g);
+  const anchor = P(gx + 5.6, -7.6, 3.1), door = P(gx + 1.35, -15.9, 2.25);
+  const fixed = box(2.2, 2.4, 1.2, M.white, anchor.x, 1.9, anchor.z + 0.2, g);
+  const tunGeo = B(1.9, 2.1, 1); tunGeo.translate(0, 0, 0.5);
+  const tun = new THREE.Mesh(tunGeo, M.white); tun.castShadow = tun.receiveShadow = true; g.add(tun); tun.position.copy(anchor);
+  const stripe = new THREE.Mesh(B(1.95, 0.25, 1).translate(0, -0.6, 0.5), M.acc); tun.add(stripe);
+  const cab = new THREE.Mesh(B(2.4, 2.4, 1.8), M.white); cab.castShadow = true; g.add(cab);
+  const cabWin = new THREE.Mesh(B(2.45, 0.6, 1.2), M.glass); cab.add(cabWin); cabWin.position.y = 0.4;
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1, 8), M.dark); leg.castShadow = true; g.add(leg);
+  const bogie = new THREE.Mesh(B(1.6, 0.6, 0.8), M.dark); g.add(bogie);
+  const b = { g, anchor, door, tun, cab, leg, bogie, ext: 0, tgt: 0, i };
+  setBridge(b, 0); return b;
+});
+function setBridge(b, e) {
+  b.ext = e;
+  const rest = b.anchor.clone().lerp(P(b.anchor.x - 1.2, b.anchor.z - 4.2, 2.8), 1);
+  const end = rest.clone().lerp(b.door.clone().add(new V3(0.5, 0, 0.2)), e);
+  const d = end.clone().sub(b.anchor);
+  b.tun.lookAt(end); b.tun.scale.z = d.length();
+  b.cab.position.copy(end); b.cab.rotation.y = Math.atan2(d.x, d.z);
+  const lp = b.anchor.clone().lerp(end, 0.78);
+  b.leg.position.set(lp.x, (lp.y - 0.9) / 2 + 0.3, lp.z); b.leg.scale.y = lp.y - 0.9;
+  b.bogie.position.set(lp.x, 0.3, lp.z); b.bogie.rotation.y = b.cab.rotation.y;
+}
+
+/* ---- apron floodlights (terminal roof) ---- */
+const roofLamps = []; for (let x = -55; x <= 55; x += 11) roofLamps.push({ x, y: 7.6, z: -9.2 });
+instanced(B(1.2, 0.5, 0.6), M.lamp, roofLamps, false);
+const SPOTS = [];
+function spot(x, y, z, tx, tz, ang = 0.85) {
+  const s = new THREE.SpotLight(0xFFD9A8, 0, 140, ang, 0.7, 1.2); s.position.set(x, y, z); s.target.position.set(tx, 0, tz);
+  scene.add(s); scene.add(s.target); SPOTS.push(s); return s;
+}
+spot(-28, 26, -4, -28, -26); spot(28, 26, -4, 28, -26);
+function mast(x, z, tx, tz) {
+  cyl(0.35, 0.5, 22, M.metal, x, 0, z); box(3.2, 1.2, 1, M.lamp, x, 22, z, scene, false); spot(x, 23, z, tx, tz, 0.75);
+}
+mast(92, -38, 108, -24); mast(-84, -34, -100, -20);
+
+/* ---- control tower ---- */
+const tower = new THREE.Group(); scene.add(tower); tower.position.set(-76, 0, 16);
+box(9, 4, 9, M.warm, 0, 0, 0, tower);
+cyl(1.9, 2.4, 26, M.white, 0, 4, 0, tower, 20);
+cyl(3.2, 2.2, 2, M.white, 0, 29, 0, tower, 20);
+cyl(4.3, 3.6, 3.6, M.glass, 0, 31, 0, tower, 24);
+cyl(4.8, 4.8, 0.6, M.roof, 0, 34.6, 0, tower, 24);
+cyl(4.85, 4.85, 0.25, M.acc, 0, 34.9, 0, tower, 24);
+cyl(0.12, 0.12, 6, M.metal, 0, 35.2, 0, tower, 6);
+const towerBeacon = add(new THREE.SphereGeometry(0.35, 10, 8), M.redLight, 0, 41.3, 0, tower, false);
+register({ id: 'twr', name: 'SNJ Tower', kind: 'Building', obj: tower, radius: 12, aliases: 'control tower ATC' });
+
+/* ---- cargo terminal ---- */
+const cargo = new THREE.Group(); scene.add(cargo);
+box(44, 9, 16, M.stone, 113, 0, 12, cargo);
+box(45, 0.8, 17, M.roof, 113, 9, 12, cargo);
+for (let i = 0; i < 6; i++) { const x = 95 + i * 7; box(5, 5.5, 0.3, M.dark, x, 0, 3.95, cargo); box(5.6, 0.4, 0.4, M.acc, x, 5.5, 3.9, cargo); }
+const cs = new THREE.Mesh(new THREE.PlaneGeometry(18, 2.6), new THREE.MeshStandardMaterial({ map: textTex('SNJ CARGO', { w: 512, h: 80, font: '700 58px "Bricolage Grotesque", sans-serif', color: '#27221D' }), transparent: true }));
+cs.position.set(113, 7.6, 3.75); cs.rotation.y = Math.PI; cargo.add(cs);
+register({ id: 'cgo', name: 'Cargo Terminal', kind: 'Building', obj: cargo, focus: P(113, 0), radius: 26, aliases: 'cargo warehouse' });
+const ULDS = [];
+for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+  const x = 93 + i * 9 + j * 1.9, z = 0.5;
+  const u = box(1.6, 1.6, 1.5, M.metal, x, 0, z); ULDS.push(u);
+  if (j < 2) box(1.6, 1.4, 1.5, j % 2 ? M.acc : M.metal, x, 1.6, z);
+}
+const loader = new THREE.Group(); scene.add(loader); loader.position.set(110.4, 0, -21.2);
+box(3.4, 0.7, 4, M.dark, 0, 0, 0, loader); box(3.2, 0.4, 3.6, M.acc, 0, 2.5, 0, loader);
+for (const s of [-1, 1]) { const a = box(0.2, 2.6, 0.2, M.metal, s * 1.2, 0.6, 0, loader); a.rotation.x = 0.5; }
+
+/* ---- MRO hangar ---- */
+const hangar = new THREE.Group(); scene.add(hangar); hangar.position.set(-100, 0, -10);
+const arch = new THREE.Mesh(new THREE.CylinderGeometry(19, 19, 30, 32, 1, true, Math.PI / 2, Math.PI), mat(0xEEE8DF, { side: THREE.DoubleSide, roughness: 0.6 }));
+arch.rotation.x = Math.PI / 2; arch.scale.set(1, 1, 0.74); arch.position.set(0, 0, 0); arch.castShadow = arch.receiveShadow = true; hangar.add(arch);
+const back = new THREE.Mesh(new THREE.CircleGeometry(19, 32, 0, Math.PI), mat(0xD8CEC1, { side: THREE.DoubleSide })); back.scale.y = 0.74; back.position.z = 15; back.receiveShadow = true; hangar.add(back);
+const rim = new THREE.Mesh(new THREE.TorusGeometry(19, 0.45, 8, 40, Math.PI), M.acc); rim.scale.y = 0.74; rim.position.z = -15; hangar.add(rim);
+flat(38, 30, mat(0xD9D3CA, { roughness: 0.5 }), 0, 0, 0.04, hangar);
+for (const s of [-1, 1]) box(4, 4.2, 6, M.acc, s * 7, 0, 3, hangar);
+box(1.2, 0.2, 10, M.yellow, 0, 0.05, -2, hangar, false);
+register({ id: 'mro', name: 'MRO Hangar 2', kind: 'Building', obj: hangar, radius: 24, aliases: 'maintenance hangar' });
+
+/* ---- landside ---- */
+flat(560, 14, M.road, 0, 60, 0.03);
+const ld = []; for (let x = -270; x <= 270; x += 8) { ld.push({ x, y: 0.05, z: 57, sx: 4, sy: 1, sz: 0.22 }); ld.push({ x, y: 0.05, z: 63, sx: 4, sy: 1, sz: 0.22 }); }
+instanced(B(1, 0.02, 1), M.paint, ld, false);
+box(560, 0.02, 0.2, M.yellow, 0, 0.045, 59.8, scene, false); box(560, 0.02, 0.2, M.yellow, 0, 0.045, 60.2, scene, false);
+PATH.loop = [P(-300, 55.5), P(-120, 55.5), P(-70, 55.5), P(-58, 50), P(-55, 34), P(-48, 23.5), P(-36, 20.6), P(36, 20.6), P(48, 23.5), P(55, 34), P(58, 50), P(70, 55.5), P(120, 55.5), P(300, 55.5)];
+const loopCv = curve(PATH.loop);
+ribbon(curve(PATH.loop.slice(2, 12)), 7.5, M.road, 0.028);
+flat(80, 5, M.road, 0, 20.6, 0.029);
+box(84, 0.25, 1.2, M.stone, 0, 0, 17.4);                           // kerb
+const zebra = []; for (let i = 0; i < 6; i++) zebra.push({ x: -1 + i * 0.4 * 0, y: 0.05, z: 18.5 + i * 0.9, sx: 6, sy: 1, sz: 0.45 });
+instanced(B(1, 0.02, 1), M.paint, zebra.map(z => Object.assign({}, z, { x: -10 })), false);
+instanced(B(1, 0.02, 1), M.paint, zebra.map(z => Object.assign({}, z, { x: 10 })), false);
+flat(70, 24, M.grass2, 0, 37.5, 0.02);                              // landscaped island
+// car parks
+const parked = [], carCols = [0xEDE7DE, 0x3B3734, 0x9AA4AB, 0xC9483B, 0x2F5D7C, 0xE2D6C1, 0x6E7F6A, 0xF2F0EC, 0x8A8F96];
+for (const cx of [-62, 62]) {
+  flat(70, 28, M.asphalt, cx, 84, 0.03);
+  const lines = []; for (let r = 0; r < 3; r++) for (let k = 0; k <= 22; k++) lines.push({ x: cx - 33 + k * 3, y: 0.05, z: 74 + r * 9.4, sx: 0.14, sy: 1, sz: 4.4 });
+  instanced(B(1, 0.02, 1), M.paint, lines, false);
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 22; k++) if (Math.random() < 0.72) parked.push({ x: cx - 31.5 + k * 3, y: 0, z: 74 + r * 9.4, ry: (r % 2 ? 0 : Math.PI) + rnd(-0.04, 0.04), color: pick(carCols) });
+  flat(8, 8, M.road, cx + (cx < 0 ? 30 : -30), 68, 0.031);
+}
+const carBody = B(1.7, 0.75, 3.8); carBody.translate(0, 0.65, 0);
+const carTop = B(1.5, 0.6, 2.0); carTop.translate(0, 1.3, -0.2);
+const pb = instanced(carBody, mat(0xffffff, { roughness: 0.5 }), parked); const pt = instanced(carTop, mat(0xffffff, { roughness: 0.5 }), parked);
+parked.forEach((p, i) => { const c = new C(p.color); pt.setColorAt(i, c.clone().multiplyScalar(0.8)); });
+register({ id: 'pkA', name: 'Car Park P1', kind: 'Car park', obj: pb, focus: P(-62, 84), radius: 30, aliases: 'parking P1 P2' });
+// street lamps
+const lamps = [], heads = [];
+for (let x = -250; x <= 250; x += 25) { lamps.push({ x, y: 4, z: 52.2 }); heads.push({ x, y: 8, z: 53.4 }); lamps.push({ x: x + 12, y: 4, z: 67.8 }); heads.push({ x: x + 12, y: 8, z: 66.6 }); }
+instanced(new THREE.CylinderGeometry(0.12, 0.16, 8, 6), M.metal, lamps); instanced(B(0.7, 0.25, 2), M.lamp, heads, false);
+
+/* ---- vegetation ---- */
+const trees = [], trunks = [];
+function tree(x, z, s = 1) { trees.push({ x, y: 2.6 * s, z, s: s * rnd(0.85, 1.15), ry: rnd(0, 6) }); trunks.push({ x, y: 0.9 * s, z, s }); }
+for (let i = 0; i < 70; i++) { const x = rnd(-300, 300), z = rnd(100, 160); tree(x, z, rnd(1, 1.6)); }
+for (let x = -250; x <= 250; x += 9) if (Math.abs(x) > 104 || Math.random() < 0.25) tree(x + rnd(-2, 2), 71 + rnd(-1, 1), 1.1);
+for (let i = 0; i < 30; i++) tree(rnd(-260, -140), rnd(-20, 45), rnd(1, 1.5));
+for (let i = 0; i < 30; i++) tree(rnd(150, 270), rnd(-15, 45), rnd(1, 1.5));
+for (let i = 0; i < 26; i++) tree(rnd(-30, 30) + (i % 2 ? 0 : 0), rnd(30, 45), 0.8);
+const treeIM = instanced(new THREE.IcosahedronGeometry(1.9, 0), M.leaf, trees);
+instanced(new THREE.CylinderGeometry(0.22, 0.3, 1.8, 6), M.trunk, trunks);
+const PALM_LEAF = [];
+function palm(x, z, h = 7) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  const lean = rnd(-0.12, 0.12);
+  const tr = add(new THREE.CylinderGeometry(0.2, 0.32, h, 6), M.trunk, 0, h / 2, 0, g); tr.rotation.z = lean;
+  const top = new V3(-Math.sin(lean) * h, h, 0);
+  for (let i = 0; i < 7; i++) {
+    const l = new THREE.Mesh(new THREE.ConeGeometry(0.75, 4.2, 4, 1), M.palm); l.castShadow = true;
+    l.scale.z = 0.25; l.position.copy(top); l.rotation.order = 'YXZ'; l.rotation.y = i / 7 * Math.PI * 2; l.rotation.x = 1.95; l.translateY(2); g.add(l); PALM_LEAF.push(l);
+  }
+}
+for (let x = -50; x <= 50; x += 10) palm(x + 5, 23.8, rnd(6, 8));
+for (let x = -30; x <= 30; x += 12) palm(x, 33 + rnd(-1, 1), rnd(6, 8.5));
+for (const x of [-60, -45, 45, 60]) palm(x, 47, 7.5);
+for (let x = -140; x <= 140; x += 22) if (Math.abs(x) > 100) palm(x, 50, 7);
+/* ============ models: aircraft + vehicles (all local forward = +z) ============ */
+const logoTex = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d');
+  g.fillStyle = '#FF6A1A'; g.beginPath(); g.arc(128, 128, 120, 0, 7); g.fill();
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 150, 62, Math.PI, 0); g.fill();
+  g.fillStyle = '#FF6A1A'; g.fillRect(40, 150, 180, 18); g.fillRect(40, 182, 180, 12);
+  g.strokeStyle = '#fff'; g.lineWidth = 10; for (let i = 0; i < 7; i++) { const a = Math.PI + (i + 0.5) * Math.PI / 7; g.beginPath(); g.moveTo(128 + Math.cos(a) * 74, 150 + Math.sin(a) * 74); g.lineTo(128 + Math.cos(a) * 98, 150 + Math.sin(a) * 98); g.stroke(); }
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t;
+})();
+const logoMat = new THREE.MeshStandardMaterial({ map: logoTex, transparent: true, roughness: 0.5 });
+const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.24, 12).rotateZ(Math.PI / 2);
+
+function makePlane(o = {}) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const skin = M.shell, tailM = mat(o.tail || ACC, { roughness: 0.55 }), stripeM = mat(o.stripe || ACC, { roughness: 0.55 });
+  const Y = 1.75;
+  add(new THREE.CylinderGeometry(0.95, 0.95, 9, 22).rotateX(Math.PI / 2), skin, 0, Y, 0, body);
+  const nose = add(new THREE.SphereGeometry(0.95, 22, 14), skin, 0, Y, 4.5, body); nose.scale.set(1, 0.95, 1.75);
+  add(new THREE.CylinderGeometry(0.95, 0.22, 3.2, 22).rotateX(Math.PI / 2), skin, 0, Y + 0.18, -6.1, body).scale.y = 0.96;
+  add(B(1.93, 0.16, 9), stripeM, 0, Y - 0.35, 0, body);
+  const ws = add(B(1.1, 0.24, 0.5), M.cockpit, 0, Y + 0.5, 5.35, body); ws.rotation.x = 0.55;
+  if (!o.freighter) {
+    const win = new THREE.InstancedMesh(B(0.05, 0.22, 0.22), M.window, 32), d = new THREE.Object3D();
+    for (let i = 0; i < 16; i++) for (const s of [-1, 1]) { d.position.set(s * 0.94, Y + 0.22, -3.7 + i * 0.48); d.updateMatrix(); win.setMatrixAt(i * 2 + (s > 0 ? 1 : 0), d.matrix); }
+    body.add(win);
+    for (const s of [-1, 1]) add(B(0.05, 0.85, 0.42), stripeM, s * 0.945, Y + 0.05, 3.85, body, false);
+  } else {
+    add(B(0.05, 1.2, 2.2), M.acc, 0.95, Y + 0.25, 2.6, body, false);
+  }
+  for (const s of [1, -1]) {
+    const wg = B(5.3, 0.18, 1.9).translate(s * 2.65, 0, 0);
+    const w = add(wg, skin, s * 0.55, Y - 0.55, -0.4, body); w.rotation.y = s * 0.38; w.rotation.z = s * 0.06;
+    const wl = add(B(0.1, 0.95, 0.7), tailM, s * 5.25, 0.45, -0.25, w); wl.rotation.z = -s * 0.15;
+    const strobe = add(new THREE.SphereGeometry(0.11, 6, 5), new THREE.MeshBasicMaterial({ color: s > 0 ? 0xFF3B30 : 0x2EE59D }), s * 5.3, 0, 0.4, w, false);
+    strobe.userData.nav = 1;
+    const eng = new THREE.Group(); eng.position.set(s * 2.65, Y - 1.05, 0.7); body.add(eng);
+    add(new THREE.CylinderGeometry(0.5, 0.42, 2.0, 18).rotateX(Math.PI / 2), skin, 0, 0, 0, eng);
+    add(new THREE.CylinderGeometry(0.52, 0.52, 0.22, 18).rotateX(Math.PI / 2), tailM, 0, 0, 0.95, eng);
+    add(new THREE.CircleGeometry(0.42, 16), M.dark, 0, 0, 1.07, eng, false);
+    add(B(0.14, 0.5, 1.3), skin, 0, 0.55, -0.2, eng);
+    const hs = add(B(2.2, 0.12, 1.05).translate(s * 1.1, 0, 0), skin, s * 0.2, Y + 0.32, -6.55, body); hs.rotation.y = s * 0.42;
+  }
+  const fin = add(B(0.2, 2.7, 2.0), tailM, 0, Y + 2.15, -6.0, body); fin.rotation.x = -0.5;
+  for (const s of [1, -1]) { const lg = add(new THREE.CircleGeometry(0.62, 24), logoMat, s * 0.11, 0.05, 0.12, fin, false); lg.rotation.y = s * Math.PI / 2; }
+  const beaconM = new THREE.MeshBasicMaterial({ color: 0xFF2A1A });
+  const bcn = [add(new THREE.SphereGeometry(0.13, 8, 6), beaconM, 0, Y + 0.97, -0.6, body, false), add(new THREE.SphereGeometry(0.13, 8, 6), beaconM, 0, Y - 0.97, 0.6, body, false)];
+  const gear = new THREE.Group(); body.add(gear);
+  add(new THREE.CylinderGeometry(0.07, 0.07, 1.0, 6), M.metal, 0, 0.75, 3.9, gear);
+  add(wheelGeo, M.rubber, 0, 0.3, 3.9, gear).scale.set(0.8, 0.85, 0.85);
+  for (const s of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.09, 0.09, 1.0, 6), M.metal, s * 1.25, 0.75, -0.5, gear);
+    add(wheelGeo, M.rubber, s * 1.4, 0.3, -0.5, gear); add(wheelGeo, M.rubber, s * 1.1, 0.3, -0.5, gear);
+  }
+  g.traverse(m => { if (m.isMesh) { m.castShadow = true; } });
+  if (o.scale) g.scale.setScalar(o.scale);
+  g.userData = { gear, bcn, body };
+  scene.add(g); return g;
+}
+function setGear(pl, v) { const gr = pl.userData.gear; gr.scale.y = Math.max(0.01, v); gr.position.y = (1 - v) * 0.9; gr.visible = v > 0.02; }
+
+/* ---- vehicles ---- */
+function wheels(g, xs, zs, r = 0.3) {
+  for (const x of xs) for (const z of zs) { const w = add(wheelGeo, M.rubber, x, r, z, g); w.scale.set(1, r / 0.3, r / 0.3); }
+}
+const VMODEL = {
+  bagtug() { const g = new THREE.Group(); box(1.3, 0.7, 1.9, M.acc, 0, 0.25, 0, g); box(1.2, 0.85, 0.8, M.white, 0, 0.95, -0.45, g); box(1.25, 0.08, 1.0, M.dark, 0, 1.8, -0.4, g); wheels(g, [-0.62, 0.62], [-0.6, 0.6], 0.28); return g; },
+  cart() {
+    const g = new THREE.Group(); box(1.2, 0.18, 1.7, M.dark, 0, 0.32, 0, g); box(1.24, 0.08, 1.75, M.white, 0, 1.45, 0, g);
+    for (const x of [-0.58, 0.58]) for (const z of [-0.8, 0.8]) box(0.06, 0.95, 0.06, M.metal, x, 0.5, z, g);
+    const bc = [0x3B3734, 0x2F5D7C, 0xC9483B, 0x8A6A4F, 0x6E7F6A, 0xE2D6C1];
+    for (let i = 0; i < 5; i++) box(rnd(0.35, 0.5), rnd(0.25, 0.4), rnd(0.5, 0.7), mat(pick(bc)), rnd(-0.3, 0.3), 0.5, -0.5 + i * 0.25, g);
+    box(0.08, 0.08, 0.7, M.dark, 0, 0.35, 1.15, g); wheels(g, [-0.55, 0.55], [-0.6, 0.6], 0.2); return g;
+  },
+  fuel() {
+    const g = new THREE.Group(); box(1.8, 0.4, 4.6, M.dark, 0, 0.35, 0, g); box(1.8, 1.4, 1.3, M.acc, 0, 0.6, 1.6, g); box(1.82, 0.45, 0.6, M.cockpit, 0, 1.4, 2.0, g);
+    add(new THREE.CylinderGeometry(0.8, 0.8, 3.0, 16).rotateX(Math.PI / 2), M.white, 0, 1.55, -0.65, g);
+    box(1.85, 0.18, 3.0, M.acc, 0, 1.2, -0.65, g);
+    const hose = add(new THREE.CylinderGeometry(0.07, 0.07, 1, 6), M.dark, 0, 0, 0, g); hose.visible = false; g.userData.hose = hose;
+    wheels(g, [-0.85, 0.85], [-1.6, 1.5], 0.36); return g;
+  },
+  catering() {
+    const g = new THREE.Group(); box(1.8, 0.4, 4.4, M.dark, 0, 0.35, 0, g); box(1.8, 1.3, 1.2, M.acc, 0, 0.6, -1.55, g); box(1.82, 0.4, 0.5, M.cockpit, 0, 1.35, -1.95, g);
+    const lift = new THREE.Group(); lift.position.set(0, 0.85, 0.55); g.add(lift);
+    box(1.9, 1.7, 2.9, M.white, 0, 0, 0, lift); box(1.92, 0.25, 2.92, M.acc, 0, 1.3, 0, lift); box(1.4, 0.2, 0.8, M.metal, 0, 1.0, 1.75, lift);
+    const sc = new THREE.Group(); sc.position.set(0, 0.75, 0.55); g.add(sc);
+    for (const s of [-1, 1]) { const a = box(0.12, 0.12, 2.6, M.metal, 0.5 * s, 0, 0, sc); a.userData.sc = s; const b = box(0.12, 0.12, 2.6, M.metal, -0.5 * s, 0, 0, sc); b.userData.sc = -s; }
+    g.userData.lift = lift; g.userData.sc = sc; wheels(g, [-0.85, 0.85], [-1.5, 1.5], 0.34); return g;
+  },
+  bus() {
+    const g = new THREE.Group(); box(2.1, 1.9, 5.6, M.white, 0, 0.35, 0, g); box(2.14, 0.65, 4.8, M.cockpit, 0, 1.15, -0.2, g); box(2.0, 0.6, 0.06, M.cockpit, 0, 1.1, 2.82, g);
+    box(2.15, 0.22, 5.62, M.acc, 0, 0.55, 0, g); box(2.0, 0.12, 5.4, M.roof, 0, 2.25, 0, g); wheels(g, [-0.95, 0.95], [-1.8, 1.8], 0.38); return g;
+  },
+  pushtug() {
+    const g = new THREE.Group(); box(2.3, 0.75, 3.6, M.dark, 0, 0.25, 0, g); box(2.32, 0.15, 3.62, M.acc, 0, 0.95, 0, g);
+    box(0.9, 0.9, 0.9, M.cockpit, 0.55, 1.0, -1.1, g); box(1.0, 0.08, 1.0, M.acc, 0.55, 1.92, -1.1, g); box(0.2, 0.2, 1.4, M.metal, 0, 0.45, 2.3, g);
+    wheels(g, [-1.0, 1.0], [-1.1, 1.1], 0.4); return g;
+  },
+  forklift() {
+    const g = new THREE.Group(); box(1.2, 0.8, 1.7, M.acc, 0, 0.3, -0.2, g); box(1.1, 0.12, 1.1, M.dark, 0, 2.1, -0.3, g);
+    for (const x of [-0.5, 0.5]) for (const z of [-0.8, 0.2]) box(0.07, 1.0, 0.07, M.dark, x, 1.1, z, g);
+    for (const x of [-0.4, 0.4]) box(0.1, 2.4, 0.1, M.metal, x, 0.1, 0.75, g);
+    for (const x of [-0.3, 0.3]) box(0.15, 0.06, 1.2, M.metal, x, 0.2, 1.4, g);
+    const uld = box(1.5, 1.5, 1.4, M.metal, 0, 0.28, 1.45, g); uld.visible = false; g.userData.uld = uld;
+    wheels(g, [-0.55, 0.55], [-0.75, 0.5], 0.28); return g;
+  },
+  deicer() {
+    const g = new THREE.Group(); box(2.0, 0.4, 5.0, M.dark, 0, 0.35, 0, g); box(2.0, 1.4, 1.3, M.white, 0, 0.6, 1.9, g); box(2.02, 0.4, 0.5, M.cockpit, 0, 1.4, 2.3, g);
+    add(new THREE.CylinderGeometry(0.85, 0.85, 2.6, 16).rotateX(Math.PI / 2), M.acc, 0, 1.6, -0.6, g);
+    const boom = new THREE.Group(); boom.position.set(0, 2.3, -1.6); g.add(boom);
+    const arm = box(0.3, 0.3, 4.8, M.white, 0, 0, 2.2, boom); arm.position.y = 0;
+    const basket = box(1.0, 0.8, 1.0, M.acc, 0, -0.2, 4.7, boom); g.userData.boom = boom; g.userData.nozzle = basket;
+    wheels(g, [-0.92, 0.92], [-1.7, 1.6], 0.38); return g;
+  },
+  car(c) { const g = new THREE.Group(); box(1.75, 0.75, 3.9, mat(c, { roughness: 0.45 }), 0, 0.28, 0, g); box(1.5, 0.6, 2.0, mat(c, { roughness: 0.45 }), 0, 1.03, -0.25, g); box(1.52, 0.4, 1.9, M.cockpit, 0, 1.1, -0.25, g); wheels(g, [-0.8, 0.8], [-1.25, 1.25], 0.3); return g; },
+  taxi() { const g = VMODEL.car(0x2B2826); box(1.77, 0.2, 3.92, mat(0xF2C230), 0, 0.75, 0, g); box(0.7, 0.28, 0.35, mat(0xF2C230), 0, 1.65, -0.2, g); return g; },
+  rickshaw(c) {
+    const g = new THREE.Group(); box(1.3, 0.75, 2.4, mat(c, { roughness: 0.5 }), 0, 0.3, 0, g); box(1.35, 0.15, 2.2, M.dark, 0, 1.75, -0.15, g);
+    for (const x of [-0.6, 0.6]) box(0.06, 0.75, 0.06, M.dark, x, 1.0, 0.8, g);
+    box(0.06, 0.75, 1.0, M.dark, 0.62, 1.0, -0.6, g); box(0.06, 0.75, 1.0, M.dark, -0.62, 1.0, -0.6, g);
+    box(1.1, 0.5, 0.06, M.cockpit, 0, 1.15, 1.0, g);
+    wheels(g, [-0.55, 0.55], [-0.75], 0.26); wheels(g, [0], [0.95], 0.26); return g;
+  },
+  coach() {
+    const g = new THREE.Group(); box(2.5, 2.6, 11, M.white, 0, 0.4, 0, g); box(2.54, 0.9, 10.2, M.cockpit, 0, 1.7, -0.2, g); box(2.3, 1.4, 0.06, M.cockpit, 0, 1.4, 5.52, g);
+    box(2.56, 0.35, 11.02, M.acc, 0, 0.75, 0, g); box(2.2, 0.3, 4, M.roof, 0, 3.0, -1, g); wheels(g, [-1.1, 1.1], [-3.6, 3.6], 0.45); return g;
+  },
+};
+function vmesh(type, c) { const g = VMODEL[type](c); g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); scene.add(g); return g; }
+/* ============ simulation: movers, aircraft cycle, GSE, cargo, landside ============ */
+let simT = 0;                                   // real seconds since start
+const clock0 = (() => { const d = new Date(); return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); })();
+const simSec = (t = simT) => clock0 + t * SIMX;
+const hhmm = s => { s = ((s % 86400) + 86400) % 86400; return String((s / 3600) | 0).padStart(2, '0') + ':' + String(((s % 3600) / 60) | 0).padStart(2, '0'); };
+const ALL = [];                                 // everything that moves (for avoidance)
+
+function newMover(o) {
+  const m = Object.assign({ v: 0, vmax: 6, acc: 3, dec: 4, radius: 2, heading: 0, segs: [], seg: null, s: 0, wait: 0, blockedT: 0, kind: 'veh', pitch: 0 }, o);
+  m.obj.rotation.order = 'YXZ'; ALL.push(m); return m;
+}
+function route(m, segs, done) {          // segs: [{pts|cv, rev, vmax, stopEnd}]
+  let cur = m.obj.position.clone();
+  m.segs = segs.map(s => { const cv = s.cv || curve([cur.clone().setY(0), ...s.pts]); cur = cv.getPointAt(1); return Object.assign({}, s, { cv }); });
+  m.seg = null; m.done = done; nextSeg(m);
+}
+function nextSeg(m) {
+  m.seg = m.segs.shift() || null; m.s = 0;
+  if (!m.seg) { m.v = 0; const d = m.done; m.done = null; d && d(m); }
+}
+function blocked(m) {
+  const f = new V3(Math.sin(m.heading), 0, Math.cos(m.heading)); if (m.seg && m.seg.rev) f.negate();
+  const p = m.obj.position;
+  for (const o of ALL) {
+    if (o === m || !o.obj.visible || o.attached === m || m.attached === o || o.state === 'idle') continue;
+    if (m.kind === 'plane' && o.kind !== 'plane') continue;
+    if (m.kind !== 'plane' && o.kind === 'plane' && (o.v < 0.3 || o === m.ignore)) continue;
+    if (o.kind === 'plane' && o.obj.position.y > 3) continue;
+    const dx = o.obj.position.x - p.x, dz = o.obj.position.z - p.z, d = Math.hypot(dx, dz);
+    const look = m.kind === 'plane' ? 24 : (o.kind === 'plane' ? m.radius + 9 : m.radius + o.radius + 1.8 + m.v * 0.5);
+    if (d > look || d < 0.01) continue;
+    const dot = (dx * f.x + dz * f.z) / d;
+    if (dot < (m.kind === 'plane' ? 0.8 : 0.55)) continue;
+    if (o.kind === m.kind && o.blockedBy === m && m.id < o.id) continue;     // break mutual waits
+    m.blockedBy = o; return true;
+  }
+  m.blockedBy = null; return false;
+}
+function stepMover(m, dt) {
+  if (m.wait > 0) { m.wait -= dt; return; }
+  const sg = m.seg; if (!sg) return;
+  const L = sg.cv.len, rem = L - m.s;
+  let tgt = sg.vmax || m.vmax;
+  if (sg.stopEnd !== false) tgt = Math.min(tgt, Math.sqrt(2 * m.dec * Math.max(0, rem - 0.05)) + 0.2);
+  if (!sg.noBlock && blocked(m)) { tgt = 0; m.blockedT += dt; if (m.blockedT > 7 && m.kind !== 'plane') { m.blockedT = 0; m.wait = 0; m.ghostT = 1.2; } } else m.blockedT = 0;
+  if (m.ghostT > 0) { m.ghostT -= dt; tgt = sg.vmax || m.vmax; }
+  m.v = m.v < tgt ? Math.min(tgt, m.v + m.acc * dt) : Math.max(tgt, m.v - m.dec * 1.6 * dt);
+  m.s = Math.min(L, m.s + m.v * dt);
+  const u = clamp(m.s / L, 0, 1), p = sg.cv.getPointAt(u), t = sg.cv.getTangentAt(u);
+  m.obj.position.set(p.x, Math.max(0, p.y), p.z);
+  const h = Math.atan2(t.x, t.z) + (sg.rev ? Math.PI : 0);
+  if (Math.hypot(t.x, t.z) > 0.05) m.heading += angDiff(m.heading, h) * Math.min(1, dt * (m.kind === 'plane' ? 6 : 9));
+  m.obj.rotation.y = m.heading;
+  if (m.kind === 'plane') { const tp = -Math.atan2(t.y, Math.hypot(t.x, t.z)); m.pitch = lerp(m.pitch, sg.rev ? 0 : tp, Math.min(1, dt * 2)); m.obj.rotation.x = m.pitch; }
+  if (m.trail) trailUpdate(m);
+  if (m.s >= L - 0.001) nextSeg(m);
+}
+
+/* ---------- airlines, schedule ---------- */
+const DESTS = [['DXB', 'Dubai'], ['SIN', 'Singapore'], ['MAA', 'Chennai'], ['MLE', 'Malé'], ['BKK', 'Bangkok'], ['KUL', 'Kuala Lumpur'], ['DOH', 'Doha'], ['BOM', 'Mumbai'], ['DEL', 'Delhi'], ['KTM', 'Kathmandu']];
+let fltSeq = 0;
+const FL_NUMS = [['SJ 412', 'SJ 413'], ['SJ 226', 'SJ 227'], ['SJ 518', 'SJ 519'], ['SJ 104', 'SJ 105'], ['SJ 731', 'SJ 732'], ['SJ 340', 'SJ 341']];
+function nextFlight() { const n = FL_NUMS[fltSeq % FL_NUMS.length], d = DESTS[(fltSeq * 3 + 1) % DESTS.length], o = DESTS[(fltSeq * 7 + 4) % DESTS.length]; fltSeq++; return { arr: n[0], dep: n[1], from: o, to: d, paxIn: 140 + ((fltSeq * 37) % 40), paxOut: 150 + ((fltSeq * 53) % 30) }; }
+const STANDS = GX.map((gx, i) => ({ i, id: 'A' + (i + 1), gx, occ: null, res: null, bridge: BRIDGES[i], last: null }));
+
+/* ---------- static aircraft (A2, A4, hangar, freighter) ---------- */
+function staticPlane(o, x, z, h, reg, info) {
+  const g = makePlane(o); g.position.set(x, 0, z); g.rotation.y = h; return g;
+}
+const STATIC = [
+  { st: 1, reg: '4R-SJF', fl: 'SJ 801', to: 'Singapore', etd: 72, tail: 0x27221D, stripe: 0x27221D, pax: 162, fuel: 9.8 },
+  { st: 3, reg: '4R-LWB', fl: 'LW 207', to: 'Malé', etd: 118, tail: 0x5E6B73, stripe: 0x5E6B73, pax: 131, fuel: 6.2 },
+].map(s => {
+  const g = staticPlane({ tail: s.tail, stripe: s.stripe }, GX[s.st], STAND_Z, 0);
+  STANDS[s.st].occ = s; setBridge(BRIDGES[s.st], 1); s.obj = g;
+  register({ id: 'ac-' + s.reg, name: s.fl, kind: 'Aircraft', obj: g, radius: 9, aliases: s.reg + ' ' + s.to, info: () => acStatic(s) });
+  return s;
+});
+const mroPlane = staticPlane({ tail: ACC, stripe: ACC }, -100, -12, 0);
+register({ id: 'ac-4R-SJC', name: '4R-SJC', kind: 'Aircraft', obj: mroPlane, radius: 9, aliases: 'A-check maintenance', info: () => ({ title: '4R-SJC', sub: 'A320-200 · in MRO Hangar 2', status: ['A-check · day 2 of 3', 'warn'], hero: [['Work cards', '64/88'], ['RTS', 'Sat 06:00']], kv: [['Check', 'A-check (750 FH)'], ['Engines', 'CFM56-5B4/3'], ['Open defects', '3 (deferred MEL)'], ['Tech crew', '9 engineers'], ['Last flight', 'SJ 732 from DEL']] }) });
+const freighter = staticPlane({ tail: ACC, stripe: 0x27221D, freighter: true, scale: 1.35 }, 115, -26, -Math.PI / 2);
+register({ id: 'ac-4R-SJX', name: 'SJ 9F1', kind: 'Aircraft', obj: freighter, radius: 12, aliases: '4R-SJX freighter cargo', info: () => ({ title: 'SJ 9F1', sub: 'A321P2F freighter · 4R-SJX · to DXB', status: ['Loading', 'acc'], hero: [['ULDs', `${CARGO.loaded}/14`], ['Payload', `${(CARGO.loaded * 1.62).toFixed(1)} t`]], kv: [['Stand', 'C2 (cargo apron)'], ['ETD', hhmm(simSec() + 5400)], ['Fuel', '14.6 t'], ['DG items', '2 (UN3480 lithium)'], ['Loadmaster', 'K. Fernando']] }) });
+
+/* ---------- live aircraft ---------- */
+const PLANES = [];
+function makeLive(reg, i) {
+  const g = makePlane({ tail: ACC, stripe: ACC });
+  const m = newMover({ id: 'P' + i, kind: 'plane', obj: g, radius: 7, vmax: 7, acc: 1.6, dec: 2.6, reg, state: 'hold', fl: null, stand: null, tr: null, fuel: 3.1, pax: 0, gearV: 1 });
+  register({ id: 'ac-' + reg, name: reg, kind: 'Aircraft', obj: g, radius: 9, aliases: reg, info: () => acLive(m), mover: m });
+  m.entry = REG[REG.length - 1]; PLANES.push(m); return m;
+}
+const runway = { by: null };
+const RWY = {
+  app: curve([P(-470, -60, 80), P(-330, -60, 48), P(-200, -60, 16), P(-122, -60, 1.2), P(-104, -60, 0)]),
+  roll: curve([P(-104, -60), P(-30, -60), P(40, -60)]),
+  tko: curve([P(-99, -60), P(-20, -60), P(52, -60), P(70, -60, 0.4), P(140, -60, 15), P(260, -60, 50), P(420, -60, 95)]),
+};
+function standIn(st) { const gx = st.gx; const pts = [...PATH.exit.slice(1)]; if (gx + 9 < 45) pts.push(P(gx + 9, -40)); pts.push(P(gx + 3, -38.4), P(gx + 0.3, -33), P(gx, -27), P(gx, STAND_Z)); return pts; }
+function freeStand() { const c = [0, 2, 4].map(i => STANDS[i]).filter(s => !s.occ && !s.res); return c.length ? pick(c) : null; }
+function planeTick(m, dt) {
+  const g = m.obj;
+  // gear animation
+  const gt = (m.state === 'depart' && g.position.y > 4) || m.state === 'hold' ? 0 : 1;
+  m.gearV += clamp(gt - m.gearV, -dt * 0.5, dt * 0.5); setGear(g, m.gearV);
+  switch (m.state) {
+    case 'hold':
+      g.visible = false; m.holdT = (m.holdT || 0) - dt;
+      if (m.holdT <= 0 && !runway.by && !PLANES.some(p => p !== m && (p.state === 'takeoff' || p.state === 'lineup'))) {
+        const st = freeStand(); if (!st) break;
+        st.res = m; m.stand = st; m.fl = nextFlight(); m.pax = m.fl.paxIn; m.fuel = rnd(2.6, 3.6); runway.by = m;
+        m.state = 'approach'; g.visible = true; m.heading = Math.PI / 2; m.pitch = 0; g.position.copy(RWY.app.getPointAt(0));
+        m.v = 30; route(m, [{ cv: RWY.app, vmax: 30, stopEnd: false, noBlock: true }, { cv: RWY.roll, vmax: 30, stopEnd: false, noBlock: true }], () => {
+          m.state = 'taxi_in'; m.dec = 2.6;
+          route(m, [{ pts: standIn(m.stand), vmax: 7 }], () => onBlock(m));
+        });
+        m.segs[0].vmax = 30; m.acc = 1.6; m.v = 30;
+        addAlert('info', `${m.fl.arr} from ${m.fl.from[1]} on final, runway 09`);
+      }
+      break;
+    case 'approach':
+      if (m.seg && m.seg.cv === RWY.roll) { m.seg.vmax = Math.max(6, m.v - dt * 3.2); m.v = m.seg.vmax; if (m.s > 6 && !m.touch) { m.touch = 1; puff(g.position); } }
+      if (m.state === 'approach' && m.seg && m.seg.cv === RWY.app) m.v = 30;
+      break;
+    case 'taxi_in':
+      if (runway.by === m && g.position.z > -52) { runway.by = null; m.touch = 0; }
+      m.fuel = Math.max(1.8, m.fuel - dt * 0.002);
+      break;
+    case 'turnaround': trTick(m, dt); break;
+    case 'taxi_out': break;
+    case 'holdshort':
+      if (!runway.by && !PLANES.some(p => p !== m && p.state === 'approach')) {
+        runway.by = m; m.state = 'lineup';
+        route(m, [{ pts: PATH.west.slice(3), vmax: 5 }], () => {
+          m.state = 'takeoff'; m.wait = 1.2; m.acc = 3.4;
+          route(m, [{ cv: RWY.tko, vmax: 34, stopEnd: false, noBlock: true }], () => { m.state = 'hold'; m.holdT = rnd(10, 18); g.visible = false; m.acc = 1.6; });
+          addAlert('ok', `${m.fl.dep} cleared for take-off, runway 09`);
+        });
+      }
+      break;
+    case 'lineup': break;
+    case 'takeoff':
+      if (g.position.y > 10) { m.state = 'depart'; runway.by = null; DATA.movements++; }
+      break;
+    case 'depart': break;
+  }
+  if (m.state === 'takeoff' && m.seg && m.v > 20) m.obj.rotation.x = Math.min(m.obj.rotation.x, -(Math.min(1, (m.v - 20) / 10)) * 0.12);
+}
+function onBlock(m) {
+  const st = m.stand; st.res = null; st.occ = m; m.state = 'turnaround'; m.v = 0; DATA.movements++;
+  m.tr = { t0: simT, t: 0, steps: TR_STEPS.map(s => ({ name: s.name, start: null, end: null })), vs: {}, pushReady: false, holdLogged: false };
+  m.tr.steps[0].start = simT;
+}
+/* turnaround timeline (real seconds from on-block) */
+const TR_STEPS = [{ name: 'On block', a: 0, b: 3 }, { name: 'Deboard', a: 3, b: 13 }, { name: 'Clean and cater', a: 13, b: 25 }, { name: 'Fuel', a: 25, b: 36 }, { name: 'Board', a: 36, b: 48 }, { name: 'Pushback', a: 48, b: 60 }];
+function trTick(m, dt) {
+  const tr = m.tr, st = m.stand; tr.t += dt; const t = tr.t;
+  TR_STEPS.forEach((s, i) => { const x = tr.steps[i]; if (i < 5) { if (x.start === null && t >= s.a) x.start = simT; if (x.end === null && t >= s.b) x.end = simT; } });
+  st.bridge.tgt = t < 46.5 ? 1 : 0;
+  // passengers
+  if (t > 3 && t < 13) m.pax = Math.round(m.fl.paxIn * (1 - (t - 3) / 10));
+  if (t > 13 && t < 36) m.pax = 0;
+  if (t > 36 && t < 48) m.pax = Math.round(m.fl.paxOut * (t - 36) / 12);
+  if (t > 25 && t < 36) m.fuel = Math.min(9.6, m.fuel + dt * (9.6 - 2.2) / 11);
+  // vehicle dispatch
+  const want = (key, at, type, spot, rel) => { if (t >= at && !tr.vs[key]) { const v = dispatch(type, m, spot, rel); tr.vs[key] = v || 'pending'; if (!v) tr.vs[key] = null; } };
+  want('bag', 0, 'bagtug', 'bag', 47);
+  want('cat', 2, 'catering', 'cat', 26);
+  want('fuel', 10, 'fuel', 'fuel', 36.5);
+  want('bus', 24, 'bus', 'bus', 44);
+  if (SEASON.key === 'snow') want('ice', 27, 'deicer', 'ice', 47);
+  want('tug', 30, 'pushtug', 'tug', 1e9);
+  // pushback
+  if (t >= 48 && !tr.pushing) {
+    const tug = tr.vs.tug; const tugReady = tug && tug.state === 'service';
+    const clear = !PLANES.some(p => p !== m && (p.state === 'taxi_in' || p.state === 'taxi_out' || p.state === 'pushback') && Math.abs(p.obj.position.x - st.gx) < 46 && p.obj.position.z < -28);
+    if (tugReady && clear && st.bridge.ext < 0.02) {
+      tr.pushing = true; tr.steps[5].start = simT; m.state = 'pushback'; tug.attached = m; m.attached = tug;
+      route(m, [{ pts: [P(st.gx, -28), P(st.gx + 2, -35.5), P(st.gx + 6, -39.4), P(st.gx + 9.5, -40)], rev: true, vmax: 1.7, noBlock: true }], () => {
+        tr.steps[5].end = simT; m.attached = null; tug.attached = null; DATA.tat.push((simT - tr.t0) * SIMX / 60); DATA.departed++;
+        tugHome(tug, st);
+        st.occ = null; st.last = { fl: m.fl.dep, t: simT };
+        m.state = 'taxi_out'; m.wait = 3.5;
+        route(m, [{ pts: [P(st.gx + 4, -40), P(-90, -40), ...PATH.west.slice(1, 3)], vmax: 7.5 }], () => { m.state = 'holdshort'; });
+      });
+    } else if (!clear && !tr.holdLogged && t > 52) { tr.holdLogged = true; addAlert('warn', `Pushback hold at ${st.id}: taxiway traffic`); }
+  }
+}
+
+/* ---------- ground support equipment ---------- */
+const YARD_X = (i) => 60 + i * 2.7, YARD_Z = -3;
+const GSE = [];
+const GSE_TYPES = { bagtug: 'Baggage tug', catering: 'Catering truck', fuel: 'Fuel dispenser', bus: 'Crew bus', pushtug: 'Pushback tug', deicer: 'De-icing truck' };
+const GSE_NAMES = { bagtug: 'BT', catering: 'CT', fuel: 'FD', bus: 'CB', pushtug: 'PB', deicer: 'DI' };
+['bagtug', 'bagtug', 'catering', 'catering', 'fuel', 'fuel', 'bus', 'pushtug', 'pushtug', 'deicer'].forEach((type, i) => {
+  const obj = vmesh(type); const n = GSE.filter(g => g.type === type).length + 1;
+  const m = newMover({ id: GSE_NAMES[type] + '-0' + n, kind: 'veh', type, obj, radius: type === 'bus' || type === 'fuel' || type === 'deicer' ? 2.6 : (type === 'pushtug' ? 2 : 1.3), vmax: type === 'pushtug' ? 7 : 8.5, acc: 3, dec: 3, home: P(YARD_X(i), YARD_Z), slot: i, state: 'idle', task: null, fuelLvl: rnd(55, 95) });
+  obj.position.copy(m.home); m.heading = 0; obj.rotation.y = 0;
+  if (type === 'bagtug') { m.carts = [vmesh('cart'), vmesh('cart')]; m.trail = [obj.position.clone(), obj.position.clone().add(new V3(0, 0, -7))]; trailUpdate(m); }
+  if (type === 'deicer') obj.visible = false;
+  GSE.push(m);
+  register({ id: m.id, name: m.id, kind: 'Vehicle', obj, radius: 3, aliases: GSE_TYPES[type], info: () => gseInfo(m), mover: m });
+});
+function trailUpdate(m) {
+  const p = m.obj.position, tr = m.trail;
+  if (tr[0].distanceTo(p) > 0.25) { tr.unshift(p.clone()); if (tr.length > 80) tr.pop(); }
+  m.carts.forEach((c, k) => {
+    const want = 2.0 + k * 2.15; let acc = p.distanceTo(tr[0]), prev = tr[0], pos = tr[tr.length - 1];
+    for (let i = 1; i < tr.length; i++) { const d = tr[i - 1].distanceTo(tr[i]); if (acc + d >= want) { pos = tr[i - 1].clone().lerp(tr[i], (want - acc) / d); prev = tr[i - 1]; break; } acc += d; }
+    c.position.copy(pos); const dx = prev.x - pos.x, dz = prev.z - pos.z; if (dx * dx + dz * dz > 1e-4) c.rotation.y = Math.atan2(dx, dz);
+  });
+}
+// service spots relative to stand (gx, -20) : [x, z, approach waypoints]
+function spotFor(kind, gx) {
+  switch (kind) {
+    case 'bag': return { end: P(gx - 4.4, -25.5), via: [P(gx - 9.3, LANE_OUT - 1.5), P(gx - 9.4, -17), P(gx - 6.4, -22.6)], exit: [P(gx - 4.4, -28), P(gx - 9.8, -26), P(gx - 10, -15)] };
+    case 'cat': return { end: P(gx - 3.9, -16.3), via: [P(gx - 9, LANE_OUT - 1.5), P(gx - 8.6, -15.2), P(gx - 6.4, -16.3)], exit: [P(gx - 8, -14.5)], backout: true };
+    case 'fuel': return { end: P(gx + 7.2, -21.5), via: [P(gx + 9.6, LANE_OUT - 1.5), P(gx + 9.7, -14), P(gx + 7.8, -18.2)], exit: [P(gx + 7.6, -25), P(gx + 10.6, -24), P(gx + 10.8, -14)] };
+    case 'bus': return { end: P(gx + 8.4, -15.8), via: [P(gx + 9.5, LANE_OUT - 1.4), P(gx + 8.7, -12.6)], exit: [P(gx + 8.6, -19.2), P(gx + 10.9, -18.5), P(gx + 11.1, -13.2)] };
+    case 'ice': return { end: P(gx + 8.6, -24.5), via: [P(gx + 10, LANE_OUT - 1.5), P(gx + 10.5, -17), P(gx + 9, -21.5)], exit: [P(gx + 9.5, -29), P(gx + 11, -24), P(gx + 11, -14)] };
+    case 'tug': return { end: P(gx, -12.1), via: [P(gx + 3, LANE_OUT), P(gx + 0.6, -10.3)] };
+  }
+}
+function dispatch(type, plane, spot, relAt) {
+  const v = GSE.find(g => g.type === type && g.state === 'idle'); if (!v) return null;
+  const sp = spotFor(spot, plane.stand.gx); v.task = { plane, spot, sp, relAt, stand: plane.stand }; v.state = 'out'; v.ignore = plane; v.obj.visible = true;
+  const hx = v.home.x;
+  const lane = [P(hx - 3.5, LANE_OUT)]; if (sp.via[0].x + 4 < hx - 7) lane.push(P(sp.via[0].x + 4, LANE_OUT));
+  route(v, [{ pts: [P(hx + 0.3, -6.6)], rev: true, vmax: 2 }, { pts: [...lane, ...sp.via, sp.end] }], () => { v.state = 'service'; v.svcT = 0; });
+  return v;
+}
+function gseReturn(v) {
+  const sp = v.task.sp, hx = v.home.x; v.state = 'return';
+  const segs = [];
+  if (sp.backout) segs.push({ pts: [P(sp.end.x - 2.2, sp.end.z + 0.6), P(sp.end.x - 4, sp.end.z + 2.6)], rev: true, vmax: 1.6 }, { pts: [P(sp.end.x - 4.4, LANE_RET), P(sp.end.x + 2, LANE_RET)] });
+  else segs.push({ pts: [...sp.exit, P(sp.exit[sp.exit.length - 1].x + 3, LANE_RET)] });
+  segs.push({ pts: [P(Math.max(hx - 6, 50), LANE_RET), P(hx - 0.6, -7.4), P(hx, -4.6), P(hx, YARD_Z)] });
+  route(v, segs, () => { v.state = 'idle'; v.task = null; v.ignore = null; if (v.type === 'deicer') v.obj.visible = false; });
+}
+function tugHome(v, st) {
+  v.state = 'return'; const gx = st.gx, hx = v.home.x;
+  route(v, [{ pts: [P(gx + 0.5, -36), P(gx - 4.5, -31.5), P(gx - 10.5, -25), P(gx - 11, -16), P(gx - 8, LANE_RET)] }, { pts: [P(Math.max(hx - 6, 50), LANE_RET), P(hx - 0.6, -7.4), P(hx, -4.6), P(hx, YARD_Z)] }], () => { v.state = 'idle'; v.task = null; v.ignore = null; });
+}
+function gseTick(v, dt) {
+  if (v.state === 'service') {
+    const tr = v.task.plane.tr; v.svcT += dt;
+    if (v.type === 'catering') { const up = tr && tr.t > 13 && tr.t < 24.5 ? 1 : 0; const L = v.obj.userData.lift; L.position.y += clamp(up * 1.0 + 0.85 - L.position.y, -dt * 0.5, dt * 0.5); v.obj.userData.sc.scale.y = 1; v.obj.userData.sc.rotation.x = 0; v.obj.userData.sc.position.y = 0.75 + (L.position.y - 0.85) / 2; }
+    if (v.type === 'fuel') { const h = v.obj.userData.hose; h.visible = tr && tr.t > 25 && tr.t < 36; if (h.visible) { h.position.set(-0.6, 1.0, -0.3); h.scale.y = 2.6; h.rotation.set(0, 0, 1.25); } }
+    if (v.type === 'deicer') { const b = v.obj.userData.boom; b.rotation.x = lerp(b.rotation.x, -0.55, dt); b.rotation.y = lerp(b.rotation.y, 0.55 + Math.sin(simT * 0.7) * 0.25, dt * 2); spray(v); }
+    if (v.type === 'pushtug') { /* wait for pushback */ }
+    else if (tr && tr.t >= v.task.relAt) gseReturn(v);
+    if (v.type !== 'pushtug' && !tr) gseReturn(v);
+  }
+  if (v.type === 'deicer' && v.state !== 'service') { const b = v.obj.userData.boom; b.rotation.x = lerp(b.rotation.x, 0, dt); b.rotation.y = lerp(b.rotation.y, 0, dt); }
+  if (v.attached && v.attached.kind === 'plane') {                       // pushback: tug locked to nose
+    const pl = v.attached.obj, h = pl.rotation.y;
+    v.obj.position.set(pl.position.x + Math.sin(h) * 8.1, 0, pl.position.z + Math.cos(h) * 8.1); v.heading = h + Math.PI; v.obj.rotation.y = v.heading;
+  }
+  if (v.state !== 'idle') v.fuelLvl = Math.max(12, v.fuelLvl - dt * 0.02);
+}
+
+/* ---------- cargo forklifts ---------- */
+const CARGO = { loaded: 6 };
+const FORK = [0, 1].map(i => {
+  const obj = vmesh('forklift'); const m = newMover({ id: 'FL-0' + (i + 1), kind: 'veh', type: 'forklift', obj, radius: 1.4, vmax: 3.6, acc: 2, dec: 2.5, state: 'pick', pickX: i ? 124 : 99 });
+  obj.position.set(m.pickX, 0, -2.4); m.heading = Math.PI; obj.rotation.y = Math.PI;
+  register({ id: m.id, name: m.id, kind: 'Vehicle', obj, radius: 2.5, aliases: 'Cargo forklift ULD', info: () => forkInfo(m), mover: m });
+  m.wait = i * 7; forkCycle(m); return m;
+});
+function forkCycle(m) {
+  const px = m.pickX;
+  m.state = 'to stack';
+  route(m, [{ pts: [P(px, -2.4)], vmax: 2 }], () => {
+    m.state = 'loading ULD'; m.wait = 2.5; m.obj.userData.uld.visible = true;
+    route(m, [{ pts: [P(px + (px < 110 ? 2 : -2), -8), P(px + (px < 110 ? 1 : -1) * 3, -10)], rev: true, vmax: 2 }, { pts: [P(110.4 + (px < 110 ? -3 : 3), -12), P(110.4, -16.2), P(110.4, -18.4)] }], () => {
+      m.state = 'unloading'; m.wait = 2.2;
+      route(m, [{ pts: [P(110.4, -16)], rev: true, vmax: 1.5 }], () => {
+        m.obj.userData.uld.visible = false; CARGO.loaded = CARGO.loaded >= 14 ? 4 : CARGO.loaded + 1; m.state = 'returning';
+        route(m, [{ pts: [P(110.4 + (px < 110 ? -2 : 2), -12.5), P(px, -9), P(px, -6)], vmax: 3.6 }], () => forkCycle(m));
+      });
+    });
+  });
+}
+
+/* ---------- landside traffic (car-following) ---------- */
+const ROADS = {
+  loop: { cv: loopCv, cars: [] },
+  east: { cv: curve([P(-300, 58.5), P(0, 58.5), P(300, 58.5)]), cars: [] },
+  west: { cv: curve([P(300, 62.2), P(0, 62.2), P(-300, 62.2)]), cars: [] },
+};
+const kerbA = loopCv.len * 0.47, kerbB = loopCv.len * 0.58;
+(function () { // compute kerb s-range from geometry
+  let a = 0, b = 0; for (let i = 0; i <= 400; i++) { const p = loopCv.getPointAt(i / 400); if (p.z < 21.5 && Math.abs(p.x) < 30) { if (!a) a = i / 400 * loopCv.len; b = i / 400 * loopCv.len; } }
+  ROADS.loop.kA = a; ROADS.loop.kB = b;
+})();
+const LS = [];
+const LS_TYPES = [['taxi', 'Taxi', 3.9], ['rickshaw', 'Auto-rickshaw', 2.4], ['car', 'Car', 3.9], ['coach', 'Airport bus', 11]];
+const RICK = [0x2F8F4E, 0xF2C230, 0x2F8F4E, 0x3A7EA6];
+function addLS(road, type, s, i) {
+  const c = type === 'car' ? pick(carCols) : (type === 'rickshaw' ? pick(RICK) : undefined);
+  const obj = vmesh(type, c); const len = LS_TYPES.find(t => t[0] === type)[2];
+  const plate = type === 'rickshaw' ? `WP ${pick(['QA', 'QB', 'QE'])}-${1000 + ((i * 7919) % 8999)}` : `WP ${pick(['CAB', 'CBH', 'KX', 'CAR'])}-${1000 + ((i * 6151) % 8999)}`;
+  const m = { id: (type === 'coach' ? 'BUS-' : type === 'taxi' ? 'TX-' : type === 'rickshaw' ? 'AR-' : 'CAR-') + (100 + i), type, obj, road, s, v: rnd(5, 9), len, stopS: null, dwell: 0, plate, vmax: type === 'coach' ? 8 : type === 'rickshaw' ? 7.5 : 11 + rnd(-1, 2), heading: 0, kind: 'ls', stops: 0 };
+  road.cars.push(m); LS.push(m);
+  register({ id: m.id, name: LS_TYPES.find(t => t[0] === type)[1] + ' ' + m.id.split('-')[1], kind: 'Landside', obj, radius: type === 'coach' ? 7 : 3, aliases: m.plate + ' ' + type, info: () => lsInfo(m), mover: m });
+}
+let lsi = 0;
+['coach', 'taxi', 'rickshaw', 'car', 'taxi', 'rickshaw', 'car', 'taxi', 'car', 'rickshaw'].forEach((t, k) => addLS(ROADS.loop, t, (k / 10) * ROADS.loop.cv.len, lsi++));
+['car', 'taxi', 'car', 'coach', 'rickshaw', 'car', 'car'].forEach((t, k) => addLS(ROADS.east, t, (k / 7) * ROADS.east.cv.len + rnd(0, 10), lsi++));
+['car', 'rickshaw', 'car', 'taxi', 'car', 'car', 'rickshaw'].forEach((t, k) => addLS(ROADS.west, t, (k / 7) * ROADS.west.cv.len + rnd(0, 10), lsi++));
+function lsTick(dt) {
+  for (const key in ROADS) {
+    const r = ROADS[key], L = r.cv.len, cars = r.cars.sort((a, b) => a.s - b.s);
+    cars.forEach((m, i) => {
+      const lead = cars[(i + 1) % cars.length]; let gap = (lead.s - m.s + (i === cars.length - 1 ? L : 0)) - (lead.len + m.len) / 2;
+      if (cars.length === 1) gap = 1e9;
+      let tgt = m.vmax;
+      if (key === 'loop' && Math.abs(m.obj.position.x) < 60 && m.obj.position.z < 50) tgt = Math.min(tgt, 6);
+      tgt = Math.min(tgt, Math.max(0, (gap - 2.2) * 0.9));
+      if (key === 'loop') {
+        if (m.stopS === null && m.s < r.kA - 5 && m.s > r.kA - 30) m.stopS = rnd(r.kA, r.kB);
+        if (m.stopS !== null) {
+          const rem = m.stopS - m.s;
+          if (rem > 0) tgt = Math.min(tgt, Math.sqrt(2 * 2.5 * rem));
+          if (rem <= 0.3 && m.dwell === 0) { m.dwell = m.type === 'coach' ? rnd(7, 10) : rnd(3, 6); m.stops++; }
+          if (m.dwell > 0) { tgt = 0; m.dwell -= dt; if (m.dwell <= 0) { m.stopS = null; m.dwell = 0; m.s += 0.4; } }
+        }
+      }
+      m.v = m.v < tgt ? Math.min(tgt, m.v + 2.5 * dt) : Math.max(tgt, m.v - 7 * dt);
+      m.s += m.v * dt; if (m.s >= L) { m.s -= L; m.stopS = null; }
+      const u = clamp(m.s / L, 0, 1), p = r.cv.getPointAt(u), t = r.cv.getTangentAt(u);
+      m.obj.position.set(p.x, 0, p.z); m.heading = Math.atan2(t.x, t.z); m.obj.rotation.y = m.heading;
+    });
+  }
+}
+
+/* ---------- small particle helpers ---------- */
+const puffs = [];
+function puff(p) { for (let i = 0; i < 6; i++) { const s = add(new THREE.SphereGeometry(0.6, 6, 5), new THREE.MeshBasicMaterial({ color: 0xE8E2D8, transparent: true, opacity: 0.7 }), p.x + rnd(-1.5, 1.5), 0.4, p.z + rnd(-1, 1), scene, false, false); puffs.push({ s, t: 0 }); } }
+const sprayGeo = new THREE.BufferGeometry(), SPN = 260, spPos = new Float32Array(SPN * 3), spVel = new Float32Array(SPN * 3), spLife = new Float32Array(SPN);
+sprayGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
+const sprayPts = new THREE.Points(sprayGeo, new THREE.PointsMaterial({ color: 0xFF8A3D, size: 0.35, transparent: true, opacity: 0.85, depthWrite: false })); sprayPts.frustumCulled = false; scene.add(sprayPts);
+let spI = 0; for (let i = 0; i < SPN; i++) spPos[i * 3 + 1] = -50;
+function spray(v) {
+  const n = v.obj.userData.nozzle.getWorldPosition(new V3()), tgt = v.task.plane.obj.position;
+  for (let k = 0; k < 4; k++) {
+    const i = spI++ % SPN; spPos[i * 3] = n.x; spPos[i * 3 + 1] = n.y; spPos[i * 3 + 2] = n.z;
+    const d = new V3(tgt.x - 2 - n.x, 1.6 - n.y, tgt.z - n.z).normalize().multiplyScalar(rnd(6, 9));
+    spVel[i * 3] = d.x + rnd(-0.8, 0.8); spVel[i * 3 + 1] = d.y + rnd(0, 1.5); spVel[i * 3 + 2] = d.z + rnd(-0.8, 0.8); spLife[i] = 1;
+  }
+}
+function fxTick(dt) {
+  for (let i = puffs.length - 1; i >= 0; i--) { const p = puffs[i]; p.t += dt; p.s.scale.setScalar(1 + p.t * 3); p.s.material.opacity = 0.7 * (1 - p.t / 1.4); if (p.t > 1.4) { scene.remove(p.s); puffs.splice(i, 1); } }
+  for (let i = 0; i < SPN; i++) { if (spLife[i] <= 0) continue; spLife[i] -= dt * 1.2; spVel[i * 3 + 1] -= 9 * dt; spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt; if (spLife[i] <= 0 || spPos[i * 3 + 1] < 0) { spLife[i] = 0; spPos[i * 3 + 1] = -50; } }
+  sprayGeo.attributes.position.needsUpdate = true;
+}
+
+/* ---------- bootstrap the two live aircraft ---------- */
+const DATA = { movements: 146, departed: 0, tat: [41, 39, 44, 40, 42, 38], paxBase: 18240 };
+const P1 = makeLive('4R-SJA', 1), P2 = makeLive('4R-SJD', 2);
+(function seed() {
+  const st = STANDS[2]; P2.stand = st; P2.fl = nextFlight(); P2.pax = 0; P2.fuel = 2.4;
+  P2.obj.visible = true; P2.obj.position.set(st.gx, 0, STAND_Z); P2.heading = 0; P2.obj.rotation.y = 0; onBlock(P2); P2.tr.t = 14; P2.tr.t0 = -14;
+  P2.tr.steps.forEach((s, i) => { if (TR_STEPS[i].a <= 14) s.start = -(14 - TR_STEPS[i].a); if (TR_STEPS[i].b <= 14) s.end = -(14 - TR_STEPS[i].b); });
+  st.bridge.tgt = 1; setBridge(st.bridge, 1);
+  P1.holdT = 2;
+})();
+function simTick(dt) {
+  simT += dt;
+  for (const m of ALL) stepMover(m, dt);
+  PLANES.forEach(m => planeTick(m, dt));
+  GSE.forEach(v => gseTick(v, dt));
+  lsTick(dt); fxTick(dt);
+  BRIDGES.forEach(b => { if (Math.abs(b.tgt - b.ext) > 0.001) setBridge(b, b.ext + clamp(b.tgt - b.ext, -dt * 0.45, dt * 0.45)); });
+  STATIC.forEach(s => { s.etd -= dt * SIMX / 60; if (s.etd < 8) s.etd += 120; });
+}
+/* ============ environment: seasons, day/night, rain, snow, lightning ============ */
+const SEASONS = {
+  summer: { name: 'Summer', sub: '31° · clear', temp: 31, wind: '240° 12 kt', vis: '10 km+', metar: 'METAR SNJ {Z} 24012KT 9999 FEW030 31/24 Q1008 NOSIG',
+    bg: 0xEFE6DA, fog: [380, 900], sun: 1.6, sunC: 0xFFF0DD, hemi: 0.75, sky: 0xFFF4E6, gnd: 0xB59C80, grass: 0xB9C79A, grass2: 0xA9BC8A, leaf: 0x7FA36A, palm: 0x6E9A5C, roof: 0xEDE6DC, apron: 0xC9C1B6, asph: 0x6B6662, rough: 0.9, metal: 0, rain: 0, snow: 0 },
+  monsoon: { name: 'Monsoon', sub: '26° · +TSRA', temp: 26, wind: '220° 22G34 kt', vis: '3,000 m', metar: 'METAR SNJ {Z} 22022G34KT 3000 +TSRA BKN012CB OVC080 26/25 Q1002 TEMPO 1500',
+    bg: 0x9EA6AA, fog: [110, 520], sun: 0.55, sunC: 0xD2DAE0, hemi: 0.62, sky: 0xC2CBD0, gnd: 0x6F7468, grass: 0x8EAA6C, grass2: 0x7E9C60, leaf: 0x5E8E4E, palm: 0x4F8448, roof: 0xD8D6D2, apron: 0x8E8C88, asph: 0x45454A, rough: 0.22, metal: 0.25, rain: 1, snow: 0, lightning: 1 },
+  fog: { name: 'Winter fog', sub: '9° · FG 400 m', temp: 9, wind: 'Calm', vis: '400 m', metar: 'METAR SNJ {Z} 00000KT 0400 R09/0550N FG VV001 09/09 Q1021 BECMG 1500 BR',
+    bg: 0xDAD7D1, fog: [22, 175], sun: 0.5, sunC: 0xF2EEE6, hemi: 0.85, sky: 0xF0EEEA, gnd: 0xA7A296, grass: 0xA7AE8E, grass2: 0x9AA383, leaf: 0x7C9068, palm: 0x6C8A5E, roof: 0xE6E2DC, apron: 0xBDB8B0, asph: 0x66625F, rough: 0.7, metal: 0, rain: 0, snow: 0 },
+  snow: { name: 'Snow', sub: '−3° · SN, de-icing', temp: -3, wind: '320° 08 kt', vis: '1,800 m', metar: 'METAR SNJ {Z} 32008KT 1800 -SN BKN008 OVC025 M03/M05 Q1015 R09/290050',
+    bg: 0xDCE1E6, fog: [90, 560], sun: 0.95, sunC: 0xEAF0FF, hemi: 0.85, sky: 0xF2F5FA, gnd: 0xC7CCD2, grass: 0xF1F2F2, grass2: 0xE8EBEC, leaf: 0xDDE6E2, palm: 0xB8CBB8, roof: 0xFAFBFC, apron: 0xD6D8DA, asph: 0x8C8D90, rough: 0.6, metal: 0.05, rain: 0, snow: 1 },
+};
+let SEASON = Object.assign({ key: 'summer' }, SEASONS.summer);
+const NIGHT = { bg: 0x161A27, sky: 0x37425F, gnd: 0x221E1C, sunC: 0x8FA6E8 };
+const env = { n: 0, nT: 0, cur: {}, init: false };
+const colorKeys = ['bg', 'sky', 'gnd', 'sunC', 'grass', 'grass2', 'leaf', 'palm', 'roof', 'apron', 'asph'];
+function envTarget() {
+  const s = SEASON, n = env.n, t = {};
+  colorKeys.forEach(k => { t[k] = new C(s[k]); });
+  t.bg.lerp(new C(NIGHT.bg), n * (s.key === 'fog' ? 0.85 : 0.95)); t.sky.lerp(new C(NIGHT.sky), n); t.gnd.lerp(new C(NIGHT.gnd), n); t.sunC.lerp(new C(NIGHT.sunC), n);
+  t.sun = s.sun * (1 - n * 0.82); t.hemi = s.hemi * (1 - n * 0.62); t.rough = s.rough; t.metal = s.metal;
+  t.fogN = s.fog[0] * (1 - n * 0.3); t.fogF = s.fog[1] * (1 - n * 0.25); t.rain = s.rain; t.snow = s.snow;
+  return t;
+}
+function envTick(dt) {
+  env.n += clamp(env.nT - env.n, -dt * 0.4, dt * 0.4);
+  const t = envTarget(), c = env.cur, k = env.init ? 1 - Math.exp(-dt * 1.6) : 1; env.init = true;
+  for (const key in t) { if (t[key] instanceof C) { c[key] = c[key] || t[key].clone(); c[key].lerp(t[key], k); } else c[key] = c[key] === undefined ? t[key] : lerp(c[key], t[key], k); }
+  scene.background.copy(c.bg); scene.fog.color.copy(c.bg); scene.fog.near = c.fogN; scene.fog.far = c.fogF;
+  sun.intensity = c.sun; sun.color.copy(c.sunC); hemi.intensity = c.hemi; hemi.color.copy(c.sky); hemi.groundColor.copy(c.gnd);
+  M.grass.color.copy(c.grass); M.grass2.color.copy(c.grass2); M.leaf.color.copy(c.leaf); M.palm.color.copy(c.palm); M.roof.color.copy(c.roof);
+  M.apron.color.copy(c.apron); M.asphalt.color.copy(c.asph); M.road.color.copy(c.asph).offsetHSL(0, 0, 0.04);
+  for (const m of [M.apron, M.asphalt, M.road]) { m.roughness = c.rough; m.metalness = c.metal; }
+  const n = env.n, sa = 1 - n;
+  sun.position.set(ctl.t.x + lerp(-90, 120, sa), lerp(170, 210, sa), ctl.t.z + lerp(-120, 110, sa)); sun.target.position.copy(ctl.t);
+  M.glass.emissiveIntensity = n * 1.9; M.window.emissiveIntensity = n * 1.8; sign.material.emissiveIntensity = n * 0.45;
+  const lowVis = SEASON.key === 'fog' || SEASON.key === 'monsoon' ? 1 : 0;
+  M.rwyLight.emissiveIntensity = 0.35 + n * 2.6 + lowVis * 1.2; M.twyLight.emissiveIntensity = 0.25 + n * 2.2 + lowVis * 0.8; M.lamp.emissiveIntensity = 0.1 + n * 2.6;
+  SPOTS.forEach(s => { s.intensity = n * 1.3; });
+  renderer.toneMappingExposure = 1.0 + n * 0.15;
+  rainTick(dt, c.rain); snowTick(dt, c.snow);
+  if (SEASON.lightning) lightningTick(dt);
+  if ((n > 0.5) !== document.body.classList.contains('night')) document.body.classList.toggle('night', n > 0.5);
+}
+/* rain */
+const RN = isMobile ? 1100 : 2200, rainPos = new Float32Array(RN * 6), rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.LineBasicMaterial({ color: 0xD8E2EA, transparent: true, opacity: 0 });
+const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+for (let i = 0; i < RN; i++) { rainPos[i * 6] = rnd(-130, 130); rainPos[i * 6 + 1] = rnd(0, 70); rainPos[i * 6 + 2] = rnd(-130, 130); }
+function rainTick(dt, a) {
+  rainMat.opacity = a * 0.55; rain.visible = a > 0.02; if (!rain.visible) return;
+  rain.position.set(ctl.t.x, 0, ctl.t.z);
+  for (let i = 0; i < RN; i++) {
+    const o = i * 6; rainPos[o + 1] -= 55 * dt; rainPos[o] += 9 * dt;
+    if (rainPos[o + 1] < 0) { rainPos[o + 1] = rnd(55, 75); rainPos[o] = rnd(-130, 130); rainPos[o + 2] = rnd(-130, 130); }
+    rainPos[o + 3] = rainPos[o] - 0.3; rainPos[o + 4] = rainPos[o + 1] + 1.8; rainPos[o + 5] = rainPos[o + 2];
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+}
+/* snow */
+const SN = isMobile ? 1400 : 2800, snowPos = new Float32Array(SN * 3), snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const snowMat = new THREE.PointsMaterial({ color: 0xFFFFFF, size: 0.8, transparent: true, opacity: 0, depthWrite: false });
+const snow = new THREE.Points(snowGeo, snowMat); snow.frustumCulled = false; scene.add(snow);
+for (let i = 0; i < SN; i++) { snowPos[i * 3] = rnd(-140, 140); snowPos[i * 3 + 1] = rnd(0, 60); snowPos[i * 3 + 2] = rnd(-140, 140); }
+function snowTick(dt, a) {
+  snowMat.opacity = a * 0.95; snow.visible = a > 0.02; if (!snow.visible) return;
+  snow.position.set(ctl.t.x, 0, ctl.t.z);
+  for (let i = 0; i < SN; i++) {
+    const o = i * 3; snowPos[o + 1] -= (3 + (i % 5) * 0.5) * dt; snowPos[o] += Math.sin(simT * 0.8 + i) * dt * 1.2 - 1.5 * dt; snowPos[o + 2] += Math.cos(simT * 0.6 + i * 0.7) * dt;
+    if (snowPos[o + 1] < 0) { snowPos[o + 1] = rnd(45, 60); snowPos[o] = rnd(-140, 140); snowPos[o + 2] = rnd(-140, 140); }
+  }
+  snowGeo.attributes.position.needsUpdate = true;
+}
+/* lightning */
+const flashEl = $('#flash'); let ltT = 4, ltCount = 0, bolt = null;
+function lightningTick(dt) {
+  ltT -= dt; if (ltT > 0) return;
+  ltT = rnd(6, 13); ltCount++;
+  const bx = ctl.t.x + rnd(-260, 260), bz = ctl.t.z - rnd(200, 320), pts = []; let x = bx, z = bz;
+  for (let y = 140; y >= 0; y -= 14) { pts.push(new V3(x, y, z)); x += rnd(-9, 9); z += rnd(-5, 5); }
+  if (bolt) scene.remove(bolt);
+  bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xF4F6FF, fog: false })); scene.add(bolt);
+  const seq = [[0, 0.5], [70, 0.05], [130, 0.38], [240, 0]];
+  seq.forEach(([ms, o]) => setTimeout(() => { flashEl.style.opacity = o; hemi.intensity += o * 1.6; if (o === 0 && bolt) { scene.remove(bolt); bolt = null; } }, ms));
+  if (ltCount === 1 || ltCount % 4 === 0) addAlert('crit', `Lightning ${(rnd(3, 8)).toFixed(1)} km NE · apron status RED, ramp ops paused`);
+}
+
+/* ============ UI ============ */
+let sel = null;
+const ringMat = new THREE.MeshBasicMaterial({ color: ACC, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 64).rotateX(-Math.PI / 2), ringMat); ring.renderOrder = 5; scene.add(ring); ring.visible = false;
+const ring2 = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 64).rotateX(-Math.PI / 2), ringMat.clone()); scene.add(ring2); ring2.visible = false;
+const labelEl = $('#selLabel');
+
+// stands as selectable pads
+STANDS.forEach(st => {
+  const pad = new THREE.Mesh(new THREE.PlaneGeometry(20, 22).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  pad.position.set(st.gx, 0.06, -23); scene.add(pad);
+  st.entry = register({ id: 'st-' + st.id, name: 'Stand ' + st.id, kind: 'Stand', obj: pad, radius: 11, aliases: st.id + ' gate', info: () => standInfo(st) });
+});
+const BINFO = {
+  term: () => ({ title: 'Terminal 1', sub: 'Pier A · 5 contact stands', status: ['Operational', 'ok'], hero: [['Pax in building', '2,940'], ['Security wait', '7 min']], kv: [['Check-in rows', 'B–F open (64 desks)'], ['Baggage system', '98.6% read rate'], ['Gates in use', `${STANDS.filter(s => s.occ).length} of 5`], ['Jet bridges', `${BRIDGES.filter(b => b.ext > 0.5).length} docked`], ['Kerb dwell (avg)', '3 min 40 s']] }),
+  twr: () => ({ title: 'SNJ Tower', sub: 'Air traffic control · 41 m', status: ['Runway 09 in use', 'info'], hero: [['Movements/hr', '22'], ['Runway', runway.by ? 'Occupied' : 'Clear']], kv: [['Tower freq', '118.300 MHz'], ['Ground freq', '121.850 MHz'], ['ATIS', `Info ${'KLMN'[Math.floor(simT / 60) % 4]}`], ['Visibility', SEASON.vis], ['Wind', SEASON.wind]] }),
+  cgo: () => ({ title: 'Cargo Terminal', sub: 'SNJ Cargo · 22,000 m²', status: ['Build-up in progress', 'acc'], hero: [['ULDs built', `${CARGO.loaded + 18}`], ['Tonnes today', '186.4']], kv: [['Freighter on stand', 'SJ 9F1 · A321P2F'], ['Cold room', '4.1 °C'], ['DG acceptance', '3 consignments'], ['Forklifts active', '2 of 2'], ['Customs hold', '1 AWB']] }),
+  mro: () => ({ title: 'MRO Hangar 2', sub: 'Line & base maintenance', status: ['1 aircraft in check', 'warn'], hero: [['Bays', '1 / 2'], ['Engineers', '9 on shift']], kv: [['In work', '4R-SJC A-check'], ['Next in', '4R-SJE (C-check prep)'], ['Tooling cal.', 'Valid to 14 Dec'], ['GPU', '400 Hz online'], ['Doors', 'Open']] }),
+  pkA: () => ({ title: 'Car Parks P1 + P2', sub: 'Short-stay · 132 bays', status: ['78% full', 'warn'], hero: [['Free bays', '29'], ['Avg stay', '1 h 52 m']], kv: [['EV chargers', '6 of 8 free'], ['Tariff', 'LKR 400 / hr'], ['Shuttle', 'Every 10 min'], ['Barriers', 'All operational']] }),
+};
+REG.forEach(e => { if (!e.info && BINFO[e.id]) e.info = BINFO[e.id]; });
+
+const STATE_TXT = { hold: ['Inbound', 'info'], approach: ['On final, runway 09', 'info'], taxi_in: ['Taxiing to stand', 'acc'], turnaround: ['Turnaround', 'acc'], pushback: ['Pushback', 'warn'], taxi_out: ['Taxiing to holding point', 'acc'], holdshort: ['Holding short, runway 09', 'warn'], lineup: ['Lining up 09', 'warn'], takeoff: ['Take-off roll', 'info'], depart: ['Climbing out', 'ok'] };
+const kts = v => Math.round(v < 10 ? v * 2.6 : v * 4.6);
+const hdg = h => String(Math.round((((180 - h * 180 / Math.PI) % 360) + 360) % 360) || 360).padStart(3, '0');
+function curFl(m) { return !m.fl ? '—' : (['hold', 'approach', 'taxi_in'].includes(m.state) || (m.state === 'turnaround' && m.tr && m.tr.t < 13)) ? m.fl.arr : m.fl.dep; }
+function trPhase(m) { if (!m.tr) return null; if (m.state === 'pushback') return 'Pushback'; const t = m.tr.t; for (let i = 4; i >= 0; i--) if (t >= TR_STEPS[i].a) return t >= 48 ? 'Awaiting pushback' : TR_STEPS[i].name; return 'On block'; }
+function acLive(m) {
+  if (!m.fl) return { title: m.reg, sub: 'A320-200 · Sanjai Air', status: ['Inbound', 'info'], hero: [['Speed', '—'], ['Altitude', '—']], kv: [] };
+  const st = STATE_TXT[m.state], arr = ['hold', 'approach', 'taxi_in'].includes(m.state);
+  let s = [st[0], st[1]];
+  if (m.state === 'taxi_in') s[0] = `Taxiing to ${m.stand.id}`;
+  if (m.state === 'turnaround') s[0] = `${trPhase(m)} · ${m.stand.id}`;
+  if (m.state === 'hold') s[0] = `Inbound · ${Math.max(6, Math.round(m.holdT * 3 + 20))} nm`;
+  const prog = m.tr && (m.state === 'turnaround' || m.state === 'pushback') ? clamp(m.tr.t / 60, 0, 1) : null;
+  return {
+    title: curFl(m), sub: `A320-200 · ${m.reg} · ${arr ? m.fl.from[1] + ' → Sanjai' : 'Sanjai → ' + m.fl.to[1]}`, status: s,
+    hero: [['Speed', m.obj.visible ? kts(m.v) + ' kt' : '—'], ['Altitude', m.obj.visible ? Math.round(m.obj.position.y * 30) + ' ft' : 'FL120'], ['Fuel', m.fuel.toFixed(1) + ' t']],
+    kv: [['Stand', m.stand ? m.stand.id : '—'], ['Pax on board', m.obj.visible ? m.pax + ' / 180' : m.fl.paxIn + ' / 180'], ['Crew', '2 flight + 4 cabin'], ['Heading', m.obj.visible ? hdg(m.heading) + '°' : '090°'], ['Gear', m.gearV > 0.9 ? 'Down, locked' : m.gearV < 0.1 ? 'Up' : 'In transit'], ['Squawk', m.reg.endsWith('A') ? '4512' : '2271'], [arr ? 'From' : 'To', arr ? m.fl.from[0] : m.fl.to[0]]],
+    bar: prog !== null ? ['Turnaround', prog] : null,
+  };
+}
+function acStatic(s) {
+  const mins = Math.round(s.etd);
+  return { title: s.fl, sub: `A320-200 · ${s.reg} · Sanjai → ${s.to}`, status: [mins < 40 ? `Boarding · ETD ${mins} min` : `Parked · ETD ${mins} min`, mins < 40 ? 'acc' : 'info'],
+    hero: [['ETD', hhmm(simSec() + s.etd * 60)], ['Fuel', s.fuel.toFixed(1) + ' t'], ['Pax', mins < 40 ? Math.round(s.pax * (1 - mins / 40)) : 0]],
+    kv: [['Stand', STANDS[s.st].id], ['Booked pax', s.pax + ' / 180'], ['Jet bridge', 'Docked, L1'], ['GPU / PCA', 'Connected'], ['Bags loaded', Math.round(s.pax * 1.1 * clamp(1 - mins / 70, 0, 1)) + ' pcs']] };
+}
+const OPERATORS = ['R. Silva', 'M. Jayasuriya', 'A. Nazeer', 'P. Wickrama', 'S. Rajan', 'D. Gunawardena', 'T. Mendis', 'H. Bandara', 'K. Perera', 'F. Rizwan'];
+function gseInfo(v) {
+  const tk = v.task, fl = tk ? curFl(tk.plane) : null;
+  const st = { idle: ['Available · GSE yard', 'ok'], out: [`En route to ${tk && tk.stand.id}`, 'acc'], service: [`Servicing ${fl} at ${tk && tk.stand.id}`, 'acc'], return: ['Returning to GSE yard', 'info'] }[v.state];
+  if (v.attached) st[0] = `Pushing back ${curFl(v.attached)}`, st[1] = 'warn';
+  if (v.blockedBy && v.v < 0.2 && v.state !== 'service' && v.state !== 'idle') st[0] = 'Giving way', st[1] = 'warn';
+  const kv = [['Operator', OPERATORS[v.slot % OPERATORS.length]], ['Assigned', tk ? `${tk.stand.id} · ${fl}` : '—'], ['Engine hours', (1800 + v.slot * 437) + ' h'], ['Next service', `${3 + v.slot % 9} days`]];
+  if (v.type === 'fuel') kv.splice(2, 0, ['Product', 'Jet A-1'], ['Uplift', tk && tk.plane.tr && tk.plane.tr.t > 25 ? (tk.plane.fuel - 2.2).toFixed(1) + ' t' : '—']);
+  if (v.type === 'catering') kv.splice(2, 0, ['Load', '6 trolleys · 2 standard units'], ['Lift', v.obj.userData.lift.position.y > 1.2 ? 'Raised to R1' : 'Lowered']);
+  if (v.type === 'bagtug') kv.splice(2, 0, ['Carts', '2 × bulk cart'], ['Bags', tk ? Math.round(tk.plane.fl.paxOut * 1.1) + ' pcs' : '0']);
+  if (v.type === 'deicer') kv.splice(2, 0, ['Fluid', 'Type I · 55/45 mix'], ['Holdover', '11 min']);
+  return { title: v.id, sub: GSE_TYPES[v.type] + (v.type === 'fuel' ? ' · 12,000 L hydrant' : ''), status: st, hero: [['Speed', Math.round(v.v * 5) + ' km/h'], ['Fuel', Math.round(v.fuelLvl) + '%']], kv };
+}
+function forkInfo(m) { return { title: m.id, sub: 'Cargo forklift · 7 t class', status: [m.state[0].toUpperCase() + m.state.slice(1), m.state.includes('load') ? 'acc' : 'info'], hero: [['Speed', Math.round(m.v * 5) + ' km/h'], ['Battery', Math.round(78 - (simT % 600) / 40) + '%']], kv: [['Freighter', 'SJ 9F1 · 4R-SJX'], ['ULDs loaded', `${CARGO.loaded} / 14`], ['Carrying', m.obj.userData.uld.visible ? 'AKE 31042SJ' : 'Empty'], ['Operator', m.id.endsWith('1') ? 'N. Hameed' : 'C. de Mel']] }; }
+function lsInfo(m) {
+  const nm = LS_TYPES.find(t => t[0] === m.type)[1];
+  const st = m.dwell > 0 ? [m.type === 'coach' ? 'Boarding at kerb' : 'Drop-off at kerb', 'acc'] : m.v < 0.5 ? ['Queuing', 'warn'] : ['Moving', 'ok'];
+  return { title: nm + ' ' + m.id.split('-')[1], sub: m.road === ROADS.loop ? 'Departures forecourt loop' : 'Airport Road A3', status: st, hero: [['Speed', Math.round(m.v * 5) + ' km/h'], ['Kerb stops', m.stops]], kv: [['Plate', m.plate], ['Lane', m.road === ROADS.loop ? 'Forecourt' : m.road === ROADS.east ? 'Eastbound' : 'Westbound'], ['Permit', m.type === 'taxi' || m.type === 'coach' ? 'Airport licensed' : m.type === 'rickshaw' ? 'Kerb drop-off only' : 'Private']] };
+}
+function standInfo(st) {
+  const o = st.occ, live = o && o.kind === 'plane';
+  const status = !o ? (st.res ? ['Reserved · inbound', 'info'] : ['Vacant', 'ok']) : live ? [trPhase(o) || 'Occupied', 'acc'] : ['Occupied · parked', 'info'];
+  return { title: 'Stand ' + st.id, sub: 'Contact stand · Code C · jet bridge', status,
+    hero: [['Aircraft', o ? (live ? o.reg : o.reg) : st.res ? st.res.reg : '—'], ['Flight', o ? (live ? curFl(o) : o.fl) : st.res ? curFl(st.res) : '—']],
+    kv: [['Jet bridge', st.bridge.ext > 0.95 ? 'Docked' : st.bridge.ext > 0.02 ? 'Moving' : 'Parked'], ['400 Hz GPU', o ? 'On' : 'Standby'], ['VDGS', o ? 'STOP · on block' : st.res ? 'A320 · armed' : 'Idle'], ['Last departure', st.last ? `${st.last.fl} · ${hhmm(simSec(st.last.t))}` : '—'], ['Hydrant pit', 'H-' + (12 + st.i * 2)]] };
+}
+
+/* detail panel */
+const detailEl = $('#detail');
+function renderDetail() {
+  if (!sel) { detailEl.innerHTML = `<div class="eyebrow">Nothing selected</div><p class="d-sub">Click an aircraft, vehicle, stand or building.</p>`; return; }
+  const d = sel.info ? sel.info() : { title: sel.name, sub: sel.kind, status: ['', 'info'], hero: [], kv: [] };
+  detailEl.innerHTML = `<div class="ph"><span class="eyebrow">${sel.kind}</span><span class="pill ${d.status[1]}">${d.status[0]}</span></div>
+    <div class="d-title">${d.title}</div><div class="d-sub">${d.sub}</div>
+    ${d.hero && d.hero.length ? `<div class="d-hero">${d.hero.map(h => `<div><span>${h[0]}</span><b>${h[1]}</b></div>`).join('')}</div>` : ''}
+    ${d.bar ? `<div class="eyebrow" style="display:flex;justify-content:space-between"><span>${d.bar[0]}</span><span class="mono">${Math.round(d.bar[1] * 100)}%</span></div><div class="bar" style="margin-bottom:12px"><i style="width:${d.bar[1] * 100}%"></i></div>` : ''}
+    <dl class="kv">${d.kv.map(r => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl>
+    <div class="d-actions"><button class="btn pri" id="dFollow">${ctl.follow === sel ? 'Following' : 'Follow'}</button><button class="btn" id="dClear">Clear</button></div>`;
+  $('#dFollow').onclick = () => { ctl.follow = sel; renderDetail(); };
+  $('#dClear').onclick = () => select(null);
+}
+function select(e, opt = {}) {
+  sel = e; ring.visible = ring2.visible = !!e; labelEl.hidden = !e; ctl.follow = null;
+  if (e) {
+    const moves = !!e.mover;
+    const p = e.focus ? e.focus.clone() : e.obj.getWorldPosition(new V3());
+    if (opt.fly !== false) { flyTo(new V3(p.x, Math.max(0, p.y * 0.85), p.z), clamp(e.radius * 6.5, 45, 220)); if (moves) ctl.follow = e; }
+    if (isMobile && opt.fly !== false) { $('#sheet').classList.remove('min'); showSheetTab('detail'); }
+  }
+  renderDetail(); renderTracker(); renderTable();
+}
+function tickSelection(dt) {
+  if (!sel) return;
+  const p = sel.focus ? sel.focus.clone() : sel.obj.getWorldPosition(new V3());
+  const r = sel.radius, ph = (simT * 1.4) % 1;
+  ring.position.set(p.x, p.y > 2 ? p.y - 1 : 0.09, p.z); ring.scale.setScalar(r);
+  ring2.position.copy(ring.position); ring2.scale.setScalar(r * (1 + ph * 0.45)); ring2.material.opacity = 0.8 * (1 - ph);
+  const lp = new V3(p.x, p.y + Math.min(r * 0.55, 8) + 3, p.z).project(camera);
+  if (lp.z < 1) { labelEl.style.transform = `translate(${(lp.x * 0.5 + 0.5) * innerWidth}px, ${(-lp.y * 0.5 + 0.5) * innerHeight}px) translate(-50%,-100%)`; }
+  const d = sel.info ? sel.info() : null;
+  $('#slName').textContent = d ? d.title : sel.name; $('#slSub').textContent = d ? d.status[0] : sel.kind;
+}
+
+/* turnaround tracker */
+function trackedPlane() {
+  if (sel && sel.mover && sel.mover.kind === 'plane' && sel.mover.tr && ['turnaround', 'pushback'].includes(sel.mover.state)) return sel.mover;
+  if (sel && sel.kind === 'Stand') { const st = STANDS.find(s => s.entry === sel); if (st.occ && st.occ.kind === 'plane') return st.occ; }
+  if (sel && sel.mover && sel.mover.task && sel.mover.task.plane.tr) return sel.mover.task.plane;
+  return PLANES.find(p => p.state === 'turnaround' || p.state === 'pushback') || PLANES.filter(p => p.tr).sort((a, b) => b.tr.t0 - a.tr.t0)[0];
+}
+function renderTracker() {
+  const m = trackedPlane(), ol = $('#steps');
+  if (!m || !m.tr) { $('#trkTag').textContent = 'No active turnaround'; ol.innerHTML = TR_STEPS.map(s => `<li><i class="dot"></i><span>${s.name}</span><time>--:--</time></li>`).join(''); return; }
+  const tr = m.tr, done = !['turnaround', 'pushback'].includes(m.state);
+  $('#trkTag').textContent = `${m.stand.id} · ${curFl(m)}`;
+  ol.innerHTML = tr.steps.map((s, i) => {
+    const cls = s.end !== null ? 'done' : s.start !== null ? 'active' : '';
+    const tm = s.end !== null ? hhmm(simSec(s.end)) : s.start !== null ? hhmm(simSec(s.start)) : '~' + hhmm(simSec(tr.t0 + TR_STEPS[i].a));
+    return `<li class="${cls}"><i class="dot"></i><span>${s.name}${cls === 'active' && i === 5 && m.state !== 'pushback' ? ' · awaiting tug' : ''}</span><time>${tm}</time></li>`;
+  }).join('');
+  const el = Math.round((done ? (tr.steps[5].end || simT) - tr.t0 : tr.t) * SIMX);
+  $('#trkL').textContent = done ? `Completed · ${Math.round(el / 60)} min` : 'Target 40 min · A320';
+  $('#trkR').textContent = 'T+' + String((el / 60) | 0).padStart(2, '0') + ':' + String(el % 60).padStart(2, '0');
+}
+
+/* live table */
+let tab = 'stands';
+const UPCOMING = [['SJ 655', 'MAA', 'Chennai', '4R-SJB', 95], ['LW 115', 'MLE', 'Malé', '4R-LWA', 130], ['SJ 289', 'DOH', 'Doha', '4R-SJE', 170], ['SJ 902', 'KUL', 'Kuala Lumpur', '4R-SJG', 215]];
+function rowsFor(t) {
+  if (t === 'stands') return { head: ['Stand', 'Status', 'Aircraft', 'Flight', 'Phase'], rows: STANDS.map(st => { const d = standInfo(st); return { e: st.entry, c: [st.id, `<span class="pill ${d.status[1]}">${!st.occ ? (st.res ? 'Reserved' : 'Vacant') : 'Occupied'}</span>`, d.hero[0][1], d.hero[1][1], st.occ ? (st.occ.kind === 'plane' ? trPhase(st.occ) : 'Parked') : st.res ? 'Inbound' : '—'] }; }) };
+  if (t === 'vehicles') return { head: ['ID', 'Type', 'Task', 'Speed'], rows: [...GSE.filter(v => v.obj.visible), ...FORK].map(v => { const d = v.type === 'forklift' ? forkInfo(v) : gseInfo(v); return { e: REG.find(r => r.mover === v), c: [v.id, v.type === 'forklift' ? 'Cargo forklift' : GSE_TYPES[v.type], `<span class="pill ${d.status[1]}">${d.status[0]}</span>`, Math.round(v.v * 5) + ' km/h'] }; }) };
+  const rows = [];
+  PLANES.filter(p => p.fl).forEach(p => {
+    const arr = ['hold', 'approach', 'taxi_in'].includes(p.state), st = STATE_TXT[p.state];
+    rows.push({ e: p.entry, c: [curFl(p), arr ? `${p.fl.from[0]} → SNJ` : `SNJ → ${p.fl.to[0]}`, p.reg, p.stand ? p.stand.id : '—', `<span class="pill ${st[1]}">${p.state === 'turnaround' ? trPhase(p) : st[0].split(',')[0]}</span>`] });
+  });
+  STATIC.forEach(s => rows.push({ e: REG.find(r => r.id === 'ac-' + s.reg), c: [s.fl, `SNJ → ${DESTS.find(d => d[1] === s.to)[0]}`, s.reg, STANDS[s.st].id, `<span class="pill ${s.etd < 40 ? 'acc' : 'info'}">${s.etd < 40 ? 'Boarding' : 'ETD ' + hhmm(simSec() + s.etd * 60)}</span>`] }));
+  UPCOMING.forEach(u => rows.push({ e: null, c: [u[0], `${u[1]} → SNJ`, u[3], 'TBA', `<span class="pill">STA ${hhmm(simSec() + u[4] * 60 - (simT * SIMX) % 3600)}</span>`] }));
+  return { head: ['Flight', 'Route', 'Reg', 'Stand', 'Status'], rows };
+}
+function renderTable() {
+  const d = rowsFor(tab);
+  $('#thead').innerHTML = '<tr>' + d.head.map(h => `<th>${h}</th>`).join('') + '</tr>';
+  $('#tbody').innerHTML = d.rows.map((r, i) => `<tr data-i="${i}" class="${r.e && r.e === sel ? 'sel' : ''}">${r.c.map((c, k) => `<td class="${k === 0 ? 'm' : ''}">${c}</td>`).join('')}</tr>`).join('');
+  [...$('#tbody').children].forEach(tr => tr.onclick = () => { const r = d.rows[+tr.dataset.i]; if (r.e) select(r.e); });
+  $('#nStands').textContent = STANDS.filter(s => s.occ).length + '/5'; $('#nVeh').textContent = GSE.filter(v => v.state !== 'idle').length + FORK.length; $('#nFl').textContent = rowsFor === null ? '' : (PLANES.filter(p => p.fl).length + STATIC.length + UPCOMING.length);
+}
+$('#tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.t; [...$('#tabs').children].forEach(x => x.classList.toggle('on', x === b)); renderTable(); };
+
+/* alerts + toast */
+const ALERTS = []; let unread = 0, toastT = null;
+function addAlert(sev, text) {
+  ALERTS.unshift({ sev, text, time: hhmm(simSec()) }); if (ALERTS.length > 40) ALERTS.pop();
+  unread++; const c = $('#alCount'); c.hidden = false; c.textContent = unread;
+  $('#alList').innerHTML = ALERTS.map(a => `<li class="${a.sev}"><span>${a.text}</span><time>${a.time}</time></li>`).join('');
+  const t = $('#toast'); t.innerHTML = `<span class="pill ${sev === 'crit' ? 'crit' : sev === 'warn' ? 'warn' : sev === 'ok' ? 'ok' : 'info'}">${{ crit: 'Alert', warn: 'Notice', ok: 'Cleared', info: 'Info' }[sev]}</span><span>${text}</span>`;
+  t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3800);
+}
+
+/* popovers, search, areas, seasons, day/night */
+const pops = ['#wxPop', '#alPop', '#qres'];
+function closePops(except) { pops.forEach(p => { if (p !== except) $(p).hidden = true; }); }
+$('#wxBtn').onclick = e => { e.stopPropagation(); const p = $('#wxPop'); closePops('#wxPop'); p.hidden = !p.hidden; };
+$('#alBtn').onclick = e => { e.stopPropagation(); const p = $('#alPop'); closePops('#alPop'); p.hidden = !p.hidden; unread = 0; $('#alCount').hidden = true; };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.wrap') && !e.target.closest('.search')) closePops(); });
+const WX_ICONS = {
+  summer: '<circle cx="8" cy="8" r="3.2" fill="#FF6A1A"/><g stroke="#FF6A1A" stroke-width="1.5" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9L13 13M13 3l-1.1 1.1M4.1 11.9L3 13"/></g>',
+  monsoon: '<path d="M4.5 10.5a3 3 0 0 1 .4-6 4 4 0 0 1 7.6 1.4 2.3 2.3 0 0 1-.5 4.6z" fill="currentColor" opacity=".55"/><path d="M8.5 9.5L7 12.5h2l-1.4 3" stroke="#FF6A1A" stroke-width="1.4" fill="none" stroke-linejoin="round"/>',
+  fog: '<g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".75"><path d="M2 5h12M3.5 8h9M2 11h12M5 14h6"/></g>',
+  snow: '<g stroke="#3A7EA6" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.5v13M2.4 4.75l11.2 6.5M2.4 11.25l11.2-6.5"/></g>',
+};
+function renderWx() {
+  $('#seasons').innerHTML = Object.entries(SEASONS).map(([k, s]) => `<button class="season ${SEASON.key === k ? 'on' : ''}" data-k="${k}"><b>${s.name}</b><span>${s.sub}</span></button>`).join('');
+  $('#wxGrid').innerHTML = `<div><span>Temp</span><b>${SEASON.temp}°C</b></div><div><span>Wind</span><b>${SEASON.wind}</b></div><div><span>Visibility</span><b>${SEASON.vis}</b></div>`;
+  const z = new Date(); $('#metar').textContent = SEASON.metar.replace('{Z}', String(z.getUTCDate()).padStart(2, '0') + hhmm(simSec() - 5.5 * 3600).replace(':', '') + 'Z');
+  $('#wxTemp').textContent = SEASON.temp + '°'; $('#wxName').textContent = SEASON.name; $('#wxIcon').innerHTML = WX_ICONS[SEASON.key];
+  [...$('#seasons').children].forEach(b => b.onclick = () => setSeason(b.dataset.k));
+}
+function setSeason(k) {
+  if (SEASON.key === k) return;
+  SEASON = Object.assign({ key: k }, SEASONS[k]); renderWx();
+  const msg = { summer: ['ok', 'Weather clear · normal operations resumed'], monsoon: ['warn', 'Thunderstorm warning · heavy rain, braking action MEDIUM on 09/27'], fog: ['warn', 'Low visibility procedures in force · RVR 550 m, CAT II approaches'], snow: ['warn', 'Snow on apron · de-icing active at departure stands, holdover 11 min'] }[k];
+  addAlert(msg[0], msg[1]); ltT = 2.5;
+}
+const DN = { sun: '<circle cx="8" cy="8" r="3.3" fill="none" stroke="currentColor" stroke-width="1.6"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.1 3.1l1 1M11.9 11.9l1 1M12.9 3.1l-1 1M4.1 11.9l-1 1"/></g>', moon: '<path d="M13 10.2A5.6 5.6 0 0 1 5.8 3a5.6 5.6 0 1 0 7.2 7.2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' };
+function setNight(on) { env.nT = on ? 1 : 0; $('#dnIcon').innerHTML = on ? DN.sun : DN.moon; $('#dnBtn').setAttribute('aria-label', on ? 'Switch to day' : 'Switch to night'); }
+$('#dnBtn').onclick = () => setNight(env.nT < 0.5);
+const AREAS = {
+  terminal: [P(0, -22), 210, 2.55, 0.9], cargo: [P(110, -14), 120, 2.2, 0.88], hangar: [P(-100, -14), 100, 2.75, 0.95],
+  runway: [P(0, -58), 310, 2.9, 1.0], landside: [P(0, 42), 170, -0.45, 0.88],
+};
+$('#areas').onclick = e => { const b = e.target.closest('button'); if (!b) return; [...$('#areas').children].forEach(x => x.classList.toggle('on', x === b)); const a = AREAS[b.dataset.area]; ctl.follow = null; flyTo(a[0], a[1], a[2], a[3]); };
+// search
+const q = $('#q'), qres = $('#qres'); let qHits = [], qI = 0;
+function searchText(e) { const m = e.mover; return (e.name + ' ' + (e.aliases || '') + ' ' + e.kind + ' ' + (m && m.fl ? m.fl.arr + ' ' + m.fl.dep : '') + ' ' + (m && m.plate ? m.plate : '')).toLowerCase(); }
+function renderQ() {
+  qres.innerHTML = qHits.length ? qHits.map((e, i) => { const d = e.info ? e.info() : null; return `<button class="res ${i === qI ? 'hl' : ''}" data-i="${i}">${d ? d.title : e.name}<span>${e.kind}${d ? ' · ' + d.status[0] : ''}</span></button>`; }).join('') : '<div class="res"><span>No matches. Try SJ 413, A3, fuel or taxi.</span></div>';
+  [...qres.querySelectorAll('button')].forEach(b => b.onclick = () => { select(qHits[+b.dataset.i]); qres.hidden = true; q.blur(); });
+}
+q.addEventListener('input', () => {
+  const s = q.value.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!s) { qres.hidden = true; return; }
+  const ns = s.replace(/ /g, '');
+  qHits = REG.filter(e => searchText(e).includes(s) || searchText(e).replace(/ /g, '').includes(ns)).slice(0, 8); qI = 0; qres.hidden = false; renderQ();
+});
+q.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { qI = Math.min(qHits.length - 1, qI + 1); renderQ(); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { qI = Math.max(0, qI - 1); renderQ(); e.preventDefault(); }
+  if (e.key === 'Enter' && qHits[qI]) { select(qHits[qI]); qres.hidden = true; q.blur(); }
+  if (e.key === 'Escape') { qres.hidden = true; q.blur(); }
+});
+q.addEventListener('focus', () => { if (q.value.trim()) qres.hidden = false; });
+// mobile sheet
+function showSheetTab(p) { [...$('#sheetTabs').children].forEach(b => b.classList.toggle('on', b.dataset.p === p)); ['detail', 'tracker', 'live'].forEach(id => $('#' + id).classList.toggle('act', id === p)); }
+$('#sheetTabs').onclick = e => { const b = e.target.closest('button'); if (b) { showSheetTab(b.dataset.p); $('#sheet').classList.remove('min'); } };
+$('#sheetGrip').onclick = () => $('#sheet').classList.toggle('min');
+if (!isMobile) ['detail', 'tracker', 'live'].forEach(id => $('#' + id).classList.add('act'));
+
+/* KPIs + sparklines */
+const SP = { otp: [88.1, 90.2, 89.5, 91.0, 90.4, 92.8, 91.7, 92.0, 93.1, 91.9, 92.6, 92.4], tat: [44, 43, 45, 42, 41, 43, 40, 42, 41, 39, 42, 41], mov: [9, 11, 14, 13, 12, 15, 17, 14, 12, 13, 16, 10] };
+function spark(id, arr, lo, hi) {
+  const w = 160, h = 26, n = arr.length, xs = i => i / (n - 1) * w, ys = v => h - 3 - (v - lo) / (hi - lo) * (h - 7);
+  const line = arr.map((v, i) => `${i ? 'L' : 'M'}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join('');
+  $(id).innerHTML = `<path d="${line}L${w},${h}L0,${h}Z" fill="rgba(255,106,26,.12)"/><path d="${line}" fill="none" stroke="#FF6A1A" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${xs(n - 1) - 2}" cy="${ys(arr[n - 1])}" r="2.6" fill="#FF6A1A"/>`;
+}
+let kpiT = 0, lastMov = DATA.movements;
+function renderKPI() {
+  const tat = DATA.tat.slice(-6), avg = tat.reduce((a, b) => a + b, 0) / tat.length;
+  const otp = SP.otp[SP.otp.length - 1];
+  $('#kOtp').textContent = otp.toFixed(1); $('#kTat').textContent = Math.round(avg);
+  $('#kTatD').innerHTML = avg <= 45 ? `<span class="up">▼ ${Math.round(45 - avg)} min</span> under target` : `<span class="dn">▲ ${Math.round(avg - 45)} min</span> over target`;
+  $('#kMov').textContent = DATA.movements; $('#kPax').textContent = '· ' + (DATA.paxBase + (DATA.movements - 146) * 158).toLocaleString('en-US') + ' pax';
+  spark('#spOtp', SP.otp, 86, 95); spark('#spTat', SP.tat, 36, 47); spark('#spMov', SP.mov, 6, 20);
+}
+
+/* beacons */
+function beaconTick() {
+  const on = (simT % 1.2) < 0.12, on2 = ((simT + 0.6) % 1.2) < 0.12;
+  [...PLANES.map(p => p.obj), ...STATIC.map(s => s.obj), mroPlane, freighter].forEach((g, i) => { const b = g.userData.bcn; b[0].visible = on; b[1].visible = on2; });
+  towerBeacon.visible = (simT % 2) < 1;
+}
+
+/* ============ main loop ============ */
+let last = performance.now(), uiT = 0, trkT = 0;
+renderWx(); renderKPI();
+addAlert('info', 'Runway 09 in use · ATIS information K');
+addAlert('warn', 'Stand A4: PCA unit fault logged, engineer ETA 20 min');
+unread = 2; $('#alCount').textContent = 2; $('#toast').classList.remove('show');
+setNight(matchMedia('(prefers-color-scheme: dark)').matches); env.n = env.nT;
+ctl.th = ctl.gth = AREAS.terminal[2]; ctl.ph = ctl.gph = AREAS.terminal[3]; ctl.t.copy(AREAS.terminal[0]); ctl.gt.copy(AREAS.terminal[0]); ctl.r = ctl.gr = AREAS.terminal[1];
+select(P2.entry, { fly: false });
+setTimeout(() => $('#hint').style.opacity = 0, 9000);
+function frame(now) {
+  const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
+  simTick(dt); envTick(dt); camUpdate(dt); tickSelection(dt); beaconTick();
+  uiT += dt; trkT += dt; kpiT += dt;
+  if (uiT > 0.4) { uiT = 0; renderDetailIfChanged(); renderTable(); $('#clk').textContent = hhmm(simSec()); }
+  if (trkT > 0.5) { trkT = 0; renderTracker(); }
+  if (kpiT > 6) { kpiT = 0; SP.otp.push(clamp(SP.otp[SP.otp.length - 1] + rnd(-0.4, 0.45), 89, 94.5)); SP.otp.shift(); SP.tat.push(DATA.tat[DATA.tat.length - 1] | 0); SP.tat.shift(); SP.mov.push(DATA.movements - lastMov + 10 + ((Math.random() * 4) | 0)); SP.mov.shift(); lastMov = DATA.movements; renderKPI(); }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+let lastDetail = '';
+function renderDetailIfChanged() {
+  const d = sel && sel.info ? JSON.stringify(sel.info()) + (ctl.follow === sel) : String(sel && sel.id);
+  if (d !== lastDetail) { lastDetail = d; renderDetail(); }
+}
+requestAnimationFrame(frame);
+</script>
+</body></html>
