@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Work Short</title>
+<style>
+  :root { --cyan:#38e1ff; --coral:#ff5a6e; --amber:#ffc35a; --violet:#9b8bff; --green:#4ade80; --muted:#a3afd0; --yellow:#ffe14d; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; font-family: Inter, "Inter Display", system-ui, sans-serif; }
+  #stage { position:relative; width:1080px; height:1920px; transform-origin:center center; overflow:hidden;
+    background: radial-gradient(120% 70% at 50% 35%, #142049 0%, #0a1030 45%, #05070f 100%); }
+  canvas { position:absolute; inset:0; width:1080px; height:1920px; display:block; }
+  #ui { position:absolute; inset:0; pointer-events:none; color:#fff; }
+  .el { position:absolute; opacity:0; }
+  .center { left:0; right:0; text-align:center; }
+  .head { font-family:"Inter Display", Inter, sans-serif; font-weight:800; letter-spacing:-0.01em; font-size:84px; line-height:1.0; text-shadow:0 6px 30px rgba(0,0,0,.55); }
+  .kick { font-weight:700; letter-spacing:.3em; font-size:30px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; }
+  .lab { font-weight:800; font-size:44px; transform:translate(-50%,-50%); white-space:nowrap; text-align:center; text-shadow:0 4px 18px rgba(0,0,0,.7); }
+  .lab small { display:block; font-size:30px; font-weight:600; color:var(--muted); margin-top:4px; }
+  #cap { position:absolute; left:60px; right:60px; top:1290px; text-align:center; font-family:"Inter Display", Inter, sans-serif; font-weight:800;
+    font-size:92px; line-height:1.08; letter-spacing:-0.01em; text-transform:uppercase; }
+  #cap span { display:inline-block; margin:0 12px; color:#fff; -webkit-text-stroke: 3px rgba(0,0,0,.55); paint-order: stroke fill; text-shadow:0 8px 28px rgba(0,0,0,.6); transition:none; }
+  #cap span.on { color:var(--yellow); }
+  .pill { display:inline-block; padding:24px 64px; border-radius:999px; background:var(--coral); font-weight:800; font-size:56px; letter-spacing:.08em; box-shadow:0 10px 40px rgba(255,90,110,.45); }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; }
+  #hint { position:fixed; bottom:8px; left:8px; color:#667; font:12px Inter, sans-serif; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1080" height="1920"></canvas>
+  <div id="ui"></div>
+  <div id="cap"></div>
+  <div id="fade"></div>
+</div>
+<div id="hint">Click to play/pause (with audio) · ←/→ seek</div>
+<script src="three.min.js"></script>
+<script src="timeline.js"></script>
+<script>
+(() => {
+const TL = window.TIMELINE;
+const DURATION = TL.duration;
+const W = 1080, H = 1920;
+const RENDER = new URLSearchParams(location.search).has('render');
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const eo = t => 1 - Math.pow(1 - clamp(t), 3);
+const eob = t => { t = clamp(t); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const lerp = (a, b, t) => a + (b - a) * t;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(7);
+const L = {}; TL.lines.forEach((l, i) => { l.next = TL.lines[i + 1] ? TL.lines[i + 1].start : DURATION; L[l.key] = l; });
+// window helper: visibility envelope for a span of lines [k0..k1]
+const span = (k0, k1) => [L[k0].start - 0.25, L[k1].next - 0.15];
+const env = (t, [a, b], fin = 0.35, fout = 0.3) => Math.min(eo((t - a) / fin), 1 - ss(b - fout, b, t));
+const C = { cyan: 0x38e1ff, coral: 0xff5a6e, amber: 0xffc35a, violet: 0x9b8bff, green: 0x4ade80, slate: 0x1f2a50 };
+const S = v => Math.max(0.0001, v);
+
+// ---------- three ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+scene.add(new THREE.AmbientLight(0x8a9ad0, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(4, 8, 9); scene.add(key);
+const rim = new THREE.DirectionalLight(0x7d6bff, 0.9); rim.position.set(-6, 3, -5); scene.add(rim);
+const root = new THREE.Group(); root.position.y = 1.4; scene.add(root);   // visual band center
+
+// dust
+const dust = (() => {
+  const n = 500, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { p[i * 3] = (R() - .5) * 16; p[i * 3 + 1] = (R() - .5) * 26; p[i * 3 + 2] = -4 - R() * 20; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8fa3ff, size: 0.06, transparent: true, opacity: 0.6 })); scene.add(m); return m;
+})();
+
+const std = (c, ei = 0.35, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, emissive: c, emissiveIntensity: ei, roughness: 0.3, metalness: 0.1 }, extra));
+
+// ---------- crystal (shards) ----------
+const crystal = new THREE.Group(); root.add(crystal);
+const shards = [];
+{
+  const ico = new THREE.IcosahedronGeometry(1.8, 1).toNonIndexed();
+  const pos = ico.attributes.position;
+  for (let f = 0; f < pos.count; f += 3) {
+    const a = new THREE.Vector3().fromBufferAttribute(pos, f), b = new THREE.Vector3().fromBufferAttribute(pos, f + 1), c = new THREE.Vector3().fromBufferAttribute(pos, f + 2);
+    const cen = a.clone().add(b).add(c).multiplyScalar(1 / 3);
+    const apex = cen.clone().multiplyScalar(-0.55);
+    const va = a.sub(cen), vb = b.sub(cen), vc = c.sub(cen);
+    const tri = [va, vb, vc, va, vb, apex, vb, vc, apex, vc, va, apex];
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(tri.flatMap(v => [v.x, v.y, v.z]), 3)); g.computeVertexNormals();
+    const col = new THREE.Color(C.cyan).lerp(new THREE.Color(0xffffff), R() * 0.35);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: col, emissive: C.cyan, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.3, flatShading: true }));
+    crystal.add(m);
+    const dir = cen.clone().normalize();
+    shards.push({ m, home: cen, out: dir.clone().multiplyScalar(2.6 + R() * 2.4).add(new THREE.Vector3((R() - .5) * 1.5, (R() - .5) * 2, (R() - .5) * 1.5)), rot: new THREE.Vector3(R() - .5, R() - .5, R() - .5).multiplyScalar(8), ph: R() * 6 });
+  }
+}
+const coreGlow = new THREE.Mesh(new THREE.SphereGeometry(1.1, 32, 24), new THREE.MeshBasicMaterial({ color: C.cyan, transparent: true, opacity: 0.35 })); crystal.add(coreGlow);
+const crystalLight = new THREE.PointLight(C.cyan, 40, 18, 1.5); crystal.add(crystalLight);
+
+// incoming pings for the shatter
+const hitPings = Array.from({ length: 6 }, (_, i) => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), std(C.coral, 1.3)); root.add(m);
+  const a = (i / 6) * Math.PI * 2 + 0.4;
+  return { m, from: new THREE.Vector3(Math.cos(a) * 6, Math.sin(a) * 6, 1), t: 0.12 + i * 0.1 };
+});
+
+// ---------- attention orb, phone, residue ----------
+const orb = new THREE.Group(); root.add(orb);
+const orbMat = std(C.cyan, 1.1);
+orb.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 40, 28), orbMat));
+const orbHalo = new THREE.Mesh(new THREE.SphereGeometry(0.75, 32, 20), new THREE.MeshBasicMaterial({ color: C.cyan, transparent: true, opacity: 0.18 })); orb.add(orbHalo);
+const orbLight = new THREE.PointLight(C.cyan, 18, 10, 1.6); orb.add(orbLight);
+// focus meter: 48 dots around orb
+const METER = 48;
+const meter = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), METER); orb.add(meter);
+for (let i = 0; i < METER; i++) { const a = Math.PI / 2 - i / METER * Math.PI * 2; meter.setMatrixAt(i, new THREE.Matrix4().makeTranslation(Math.cos(a) * 1.05, Math.sin(a) * 1.05, 0)); meter.setColorAt(i, new THREE.Color(C.cyan)); }
+
+function makePhone() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.25, 2.35, 0.16), new THREE.MeshStandardMaterial({ color: 0x1a1f33, roughness: 0.35, metalness: 0.6 }));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.08, 2.12), new THREE.MeshBasicMaterial({ color: 0x24305e }));
+  screen.position.z = 0.085;
+  const notif = [0, 1, 2].map(i => { const n = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.26), new THREE.MeshBasicMaterial({ color: [C.coral, C.amber, C.violet][i], transparent: true })); n.position.set(0, 0.65 - i * 0.36, 0.09); g.add(n); return n; });
+  const badge = new THREE.Mesh(new THREE.SphereGeometry(0.17, 18, 12), std(C.coral, 1.2)); badge.position.set(0.6, 1.15, 0.12);
+  g.add(body, screen, badge); g.userData = { notif, badge, screen };
+  return g;
+}
+const phone = makePhone(); root.add(phone);
+const pullLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: C.coral, transparent: true }));
+root.add(pullLine);
+
+const HOME = new THREE.Vector3(-1.7, -0.2, 0), PH = new THREE.Vector3(1.9, 0.4, 0);
+const RES = 520, resPos = new Float32Array(RES * 3), resData = [];
+for (let i = 0; i < RES; i++) resData.push({ off: new THREE.Vector3(R() - .5, R() - .5, R() - .5).normalize().multiplyScalar(0.3 + R() * 0.9), d: R() * 1.4, dur: 0.6 + R() * 1.6, max: R() < 0.5 ? 0.05 + R() * 0.3 : 0.7 + R() * 0.3, sw: R() * 6.28 });
+const resGeo = new THREE.BufferGeometry(); resGeo.setAttribute('position', new THREE.BufferAttribute(resPos, 3));
+const resMat = new THREE.PointsMaterial({ color: 0x9fefff, size: 0.075, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+const residue = new THREE.Points(resGeo, resMat); root.add(residue);
+
+// ---------- workday bar ----------
+const SEG = 16, SW = 0.38, SG = 0.02;
+const cutIdx = [2, 5, 7, 10, 12, 14];
+const segs = Array.from({ length: SEG }, (_, i) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SW, 1, 0.7), std(C.cyan, 0.4)); root.add(m);
+  return { m, x0: (i - (SEG - 1) / 2) * (SW + SG), cut: cutIdx.indexOf(i) };
+});
+const blades = cutIdx.map(() => { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.6, 1.1), std(C.coral, 1.4)); root.add(b); return b; });
+const bigBlock = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 0.7), std(C.cyan, 0.6)); root.add(bigBlock);
+const bigEdges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 0.7)), new THREE.LineBasicMaterial({ color: 0xffffff })); bigBlock.add(bigEdges);
+
+// ---------- output cubes ----------
+const CU = 0.6, CG = 0.08;
+const cubesA = Array.from({ length: 8 }, (_, i) => { const m = new THREE.Mesh(new THREE.BoxGeometry(CU, CU, CU), std(C.coral, 0.3)); root.add(m); return { m, p: new THREE.Vector3((i - 3.5) * (CU + CG), 1.55, 0), d: i * 0.09 }; });
+const cubesB = []; for (let c = 0; c < 4; c++) for (let r = 0; r < 3; r++) { const m = new THREE.Mesh(new THREE.BoxGeometry(CU, CU, CU), std(C.cyan, 0.4)); root.add(m); cubesB.push({ m, p: new THREE.Vector3((c - 1.5) * (CU + CG), -2.3 + r * (CU + CG), 0), d: c * 0.3 + r * 0.1 }); }
+
+// ---------- steps ----------
+const stepDots = [C.cyan, C.violet, C.amber, C.green].map((c, i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 20), std(c, 0.9)); m.position.set((i - 1.5) * 1.5, 0, 0); root.add(m); return m; });
+// 1. target + arrow
+const target = new THREE.Group(); root.add(target);
+[[1.9, 0xffffff], [1.4, C.coral], [0.9, 0xffffff], [0.42, C.coral]].forEach(([r, c], i) => {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.12 + i * 0.03, 64), std(c, 0.35)); m.rotation.x = Math.PI / 2; m.position.z = i * 0.03; target.add(m);
+});
+const arrow = new THREE.Group(); target.add(arrow);
+{ const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 12), std(0xe8ecff, 0.2)); shaft.rotation.x = Math.PI / 2; shaft.position.z = 1.3;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.45, 16), std(C.amber, 0.6)); tip.rotation.x = -Math.PI / 2; tip.position.z = -0.05;
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.4), std(C.cyan, 0.6)); fl.position.z = 2.45; const fl2 = fl.clone(); fl2.rotation.z = Math.PI / 2;
+  arrow.add(shaft, tip, fl, fl2); }
+// 2. door
+const door = new THREE.Group(); root.add(door);
+{ const fm = std(0xc9d2ff, 0.15); const t = 0.16;
+  const l = new THREE.Mesh(new THREE.BoxGeometry(t, 4, t), fm); l.position.x = -1.2; const r = l.clone(); r.position.x = 1.2;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.56, t, t), fm); top.position.y = 2; l.position.y = r.position.y = 0;
+  door.add(l, r, top); }
+const doorPivot = new THREE.Group(); doorPivot.position.set(-1.12, 0, 0); door.add(doorPivot);
+const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(2.24, 3.92, 0.08), new THREE.MeshStandardMaterial({ color: 0x3a4a8a, roughness: 0.5, transparent: true, opacity: 0.95 })); doorPanel.position.set(1.12, 0, 0); doorPivot.add(doorPanel);
+const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), std(C.amber, 0.5)); knob.position.set(1.9, 0, 0.08); doorPivot.add(knob);
+// 3. timer
+const TICKS = 60;
+const timer = new THREE.Group(); root.add(timer);
+const ticks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.42, 0.1), new THREE.MeshBasicMaterial({ color: 0xffffff }), TICKS); timer.add(ticks);
+for (let i = 0; i < TICKS; i++) { const a = Math.PI / 2 - i / TICKS * Math.PI * 2; const m = new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * 2.3, Math.sin(a) * 2.3, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, a - Math.PI / 2)), new THREE.Vector3(1, i % 5 ? 1 : 1.5, 1)); ticks.setMatrixAt(i, m); ticks.setColorAt(i, new THREE.Color(0x2a3566)); }
+const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.9, 0.1), std(C.amber, 0.8)); hand.geometry.translate(0, 0.95, 0); timer.add(hand);
+const hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), std(C.amber, 0.8)); timer.add(hub);
+// 4. shield
+const shield = new THREE.Mesh(new THREE.SphereGeometry(1.7, 48, 32), new THREE.MeshStandardMaterial({ color: C.cyan, emissive: C.cyan, emissiveIntensity: 0.4, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })); root.add(shield);
+const shieldWire = new THREE.Mesh(new THREE.IcosahedronGeometry(1.72, 2), new THREE.MeshBasicMaterial({ color: C.cyan, wireframe: true, transparent: true, opacity: 0.25 })); shield.add(shieldWire);
+const bouncers = Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), std(C.coral, 1.2)); root.add(m); const a = i / 7 * Math.PI * 2 + 0.3; return { m, dir: new THREE.Vector3(Math.cos(a), Math.sin(a), 0), t: 0.25 + i * 0.42 }; });
+// 30-day ring
+const DAYS = 30;
+const dayRing = new THREE.InstancedMesh(new THREE.SphereGeometry(0.14, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }), DAYS); root.add(dayRing);
+for (let i = 0; i < DAYS; i++) { const a = Math.PI / 2 - i / DAYS * Math.PI * 2; dayRing.setMatrixAt(i, new THREE.Matrix4().makeTranslation(Math.cos(a) * 2.6, Math.sin(a) * 2.6 - 0.6, 0)); dayRing.setColorAt(i, new THREE.Color(0x2a3566)); }
+
+// ---------- overlays ----------
+const ui = document.getElementById('ui');
+const OV = [];
+function ov(win, html, style = '', cls = '', anchor = null) { const el = document.createElement('div'); el.className = 'el ' + cls; el.style.cssText = style; el.innerHTML = html; ui.appendChild(el); OV.push({ win, el, anchor }); return el; }
+const HEAD_TOP = 'top:230px';
+ov(span('ping', 'residue'), '<div class="kick">The problem</div><div class="head">Every ping<br><span style="color:var(--coral)">steals focus</span></div>', HEAD_TOP, 'center');
+ov(span('name', 'name'), '<div class="kick">Researchers call it</div><div class="head" style="color:var(--cyan)">Attention<br>Residue</div>', HEAD_TOP, 'center');
+ov(span('day', 'chop'), '<div class="kick">9 AM – 5 PM</div><div class="head">A normal<br>workday</div>', HEAD_TOP, 'center');
+ov(span('block', 'block'), '<div class="kick">Instead</div><div class="head" style="color:var(--cyan)">Deep Work</div>', HEAD_TOP, 'center');
+ov(span('formula', 'beat'), '<div class="head" style="font-size:76px">Work = <span style="color:var(--amber)">Time</span> × <span style="color:var(--cyan)">Focus</span></div>', 'top:200px', 'center');
+ov(span('start', 'start'), '<div class="kick">Today</div><div class="head">How to start</div>', HEAD_TOP, 'center');
+const stepHeads = [['s1', 'Pick one task', '--cyan'], ['s2', 'Phone in<br>another room', '--violet'], ['s3', '60-minute<br>timer', '--amber'], ['s4', 'Stay bored', '--green']];
+stepHeads.forEach(([k, h, c], i) => ov(span(k, k), `<div class="kick" style="color:var(${c})">Step ${i + 1}</div><div class="head">${h}</div>`, HEAD_TOP, 'center'));
+ov(span('rebuild', 'rebuild'), '<div class="kick">Every day for</div><div class="head" style="color:var(--green)">30 days</div>', HEAD_TOP, 'center');
+// anchored labels
+ov([L.ping.start + 0.1, L.residue.next - 0.2], 'Your focus', 'color:var(--cyan)', 'lab', new THREE.Vector3(-1.7, -1.4, 0));
+ov([L.day.start + 0.3, L.chop.next - 0.2], '9 AM', 'font-size:34px;color:var(--muted)', 'lab', new THREE.Vector3(-3.0, -1.0, 0));
+ov([L.day.start + 0.3, L.chop.next - 0.2], '5 PM', 'font-size:34px;color:var(--muted)', 'lab', new THREE.Vector3(3.0, -1.0, 0));
+ov([L.block.start + 0.8, L.block.next - 0.2], '4 hours<small>no interruptions</small>', 'color:var(--cyan)', 'lab', new THREE.Vector3(0, -1.6, 0));
+ov([L.formula.start + 0.8, L.beat.next - 0.2], '4 hrs distracted', 'color:var(--coral);font-size:38px', 'lab', new THREE.Vector3(0, 0.85, 0));
+ov([L.formula.start + 2.3, L.beat.next - 0.2], '2 hrs deep', 'color:var(--cyan);font-size:38px', 'lab', new THREE.Vector3(0, -3.05, 0));
+ov([L.beat.start + 0.1, L.beat.next - 0.2], '= 8', 'color:var(--coral);font-size:72px', 'lab', new THREE.Vector3(3.15, 1.55, 0));
+ov([L.beat.start + 0.5, L.beat.next - 0.2], '= 12', 'color:var(--cyan);font-size:88px', 'lab', new THREE.Vector3(2.45, -1.62, 0));
+const timerLab = ov([L.s3.start + 0.2, L.s3.next - 0.2], '', 'font-size:80px', 'lab', new THREE.Vector3(0, 0, 0.3));
+ov([L.cta.start - 0.1, DURATION], '<div class="pill">FOLLOW</div><div style="margin-top:30px;font-size:40px;font-weight:600;color:var(--muted)">Part 1 · the 30-day experiment</div>', 'top:260px', 'center');
+
+// karaoke captions
+const capEl = document.getElementById('cap');
+let capKey = '';
+function chunks(words) { const out = []; let cur = []; for (const w of words) { cur.push(w); if (cur.length >= 3 || /[.,!?]$/.test(w[0])) { out.push(cur); cur = []; } } if (cur.length) out.push(cur); return out; }
+TL.lines.forEach(l => l.chunks = chunks(l.words));
+function updateCaptions(t) {
+  const line = TL.lines.find(l => t >= l.start - 0.05 && t < l.next - 0.05);
+  if (!line || t > line.end + 0.35) { capEl.innerHTML = ''; capKey = ''; return; }
+  let ch = line.chunks.find(c => t < c[c.length - 1][2]) || line.chunks[line.chunks.length - 1];
+  const k = line.key + ch[0][1];
+  if (k !== capKey) { capEl.innerHTML = ch.map(w => `<span>${w[0].replace(/[.,]$/, '')}</span>`).join(''); capKey = k; }
+  const spans = capEl.children; const st = ch[0][1];
+  ch.forEach((w, i) => {
+    const on = t >= w[1] - 0.03;
+    spans[i].className = (t >= w[1] - 0.03 && t < w[2]) ? 'on' : '';
+    const pop = eob((t - w[1] + 0.03) / 0.18);
+    spans[i].style.opacity = on ? 1 : 0.0;
+    spans[i].style.transform = `scale(${on ? lerp(0.7, 1, pop) : 0.7})`;
+  });
+}
+
+// ---------- render ----------
+const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+function setVis(obj, a) { obj.visible = a > 0.001; if (obj.visible) obj.scale.setScalar(S(a)); }
+
+function render(t) {
+  // camera: gentle float
+  camera.position.set(Math.sin(t * 0.35) * 0.6, Math.sin(t * 0.27) * 0.3, 14);
+  camera.lookAt(0, 0, 0);
+  dust.position.y = (t * 0.25) % 6;
+
+  // ---- crystal: intact (hook1), shatter (hook2), gone, rebuild, cta
+  let explode = 0, cA = 0, spin = t * 0.5;
+  if (t < L.ping.start + 0.5) {
+    cA = env(t, [-1, L.ping.start + 0.5]);
+    explode = eo((t - (L.hook2.start + 0.75)) / 0.6);
+  } else if (t >= L.rebuild.start - 0.25) {
+    cA = 1;
+    explode = 1 - ss(L.rebuild.start + 0.2, L.rebuild.end - 0.3, t);
+  }
+  crystal.visible = cA > 0.001;
+  if (crystal.visible) {
+    crystal.scale.setScalar(S(cA * (t > L.cta.start ? 1 + 0.04 * Math.sin(t * 5) : 1)));
+    crystal.rotation.set(0.3, spin, 0.1); crystal.position.y = t >= L.rebuild.start - 0.25 ? -0.6 : 0;
+    shards.forEach(s => {
+      _v.copy(s.home).lerp(s.out, explode); if (t >= L.rebuild.start - 0.25) _v.lerp(s.home, 0.7 * explode);
+      _v.y += Math.sin(t * 1.5 + s.ph) * 0.12 * explode;
+      s.m.position.copy(_v);
+      s.m.rotation.set(s.rot.x * explode, s.rot.y * explode + Math.sin(t + s.ph) * 0.4 * explode, s.rot.z * explode);
+      s.m.material.emissiveIntensity = 0.35 + (1 - explode) * (t > L.rebuild.start ? 0.5 : 0) + (t > L.cta.start ? 0.25 + 0.2 * Math.sin(t * 5) : 0);
+    });
+    coreGlow.material.opacity = 0.35 * (1 - explode);
+    crystalLight.intensity = 40 * (1 - explode * 0.85);
+  }
+  hitPings.forEach(p => {
+    const u = (t - L.hook2.start) / 0.75 - p.t;
+    p.m.visible = u > -0.6 && u < 0.6 * (1);
+    if (!p.m.visible) return;
+    const k = eo((u + 0.6) / 0.6);
+    p.m.position.copy(p.from).lerp(new THREE.Vector3(0, 0, 0), k);
+    p.m.scale.setScalar(S(1 - ss(0.85, 1, k)));
+  });
+
+  // ---- orb / phone / residue (ping, residue, name) + orb in s4
+  const prob = span('ping', 'name');
+  const pA = env(t, prob);
+  const s4w = span('s4', 's4');
+  const s4A = env(t, s4w);
+  let orbPos = HOME.clone(), orbA = pA, orbDim = 1;
+  if (pA > 0.001) {
+    const u = t - L.ping.start;
+    const buzzes = [0.35, 1.15, 1.95];
+    let pull = 0; buzzes.forEach((b, i) => { pull = Math.max(pull, eo((u - b) / 0.35) * (0.33 * (i + 1))); });
+    pull = Math.min(pull, 0.92);
+    const back = eo((t - L.residue.start - 0.25) / 1.0);
+    const pullNow = pull * (1 - back);
+    orbPos = HOME.clone().lerp(PH, pullNow);
+    orbDim = lerp(1, 0.45, ss(L.residue.start + 0.8, L.name.start + 0.8, t));
+    // phone
+    phone.visible = true; phone.scale.setScalar(S(pA));
+    const shake = buzzes.reduce((s, b) => s + Math.max(0, 1 - Math.abs(u - b) / 0.25), 0);
+    phone.position.set(PH.x + Math.sin(t * 70) * 0.08 * shake, PH.y, -0.3);
+    phone.rotation.set(0, -0.35, Math.sin(t * 60) * 0.06 * shake);
+    phone.userData.notif.forEach((n, i) => { n.visible = u > buzzes[i]; n.scale.setScalar(S(eob((u - buzzes[i]) / 0.3))); });
+    phone.userData.badge.scale.setScalar(S(1 + shake * 0.6));
+    // pull line
+    pullLine.visible = pullNow > 0.02 && back < 0.95;
+    pullLine.geometry.setFromPoints([orbPos, PH.clone().setZ(0)]);
+    pullLine.material.opacity = 0.8 * (1 - back);
+    // residue
+    const rA = env(t, [L.residue.start, prob[1]]);
+    residue.visible = rA > 0.001 && t > L.residue.start + 0.2;
+    if (residue.visible) {
+      const ru = t - L.residue.start - 0.25;
+      for (let i = 0; i < RES; i++) {
+        const d = resData[i];
+        const k = eo((ru - d.d * 0.6) / d.dur) * d.max;
+        const sw = d.sw + t * 1.2; const spread = lerp(1, 0.4, k) * eo(ru / 0.4);
+        resPos[i * 3] = lerp(PH.x, HOME.x, k) + (d.off.x * Math.cos(sw) - d.off.z * Math.sin(sw)) * spread;
+        resPos[i * 3 + 1] = lerp(PH.y, HOME.y, k) + d.off.y * spread;
+        resPos[i * 3 + 2] = (d.off.x * Math.sin(sw) + d.off.z * Math.cos(sw)) * spread;
+      }
+      resGeo.attributes.position.needsUpdate = true;
+      resMat.color.set(0x9fefff).lerp(new THREE.Color(C.coral), ss(L.name.start, L.name.start + 0.8, t));
+      resMat.opacity = rA;
+      resMat.size = 0.075 + 0.04 * ss(L.name.start, L.name.start + 0.8, t);
+    }
+  } else { phone.visible = false; pullLine.visible = false; residue.visible = false; }
+  if (s4A > 0.001) { orbA = s4A; orbPos = new THREE.Vector3(0, 0, 0); orbDim = 1; }
+  orb.visible = orbA > 0.001;
+  if (orb.visible) {
+    orb.position.copy(orbPos); orb.scale.setScalar(S(orbA * (s4A > 0 ? 1.4 : 1)));
+    orbMat.emissiveIntensity = 1.1 * orbDim; orbLight.intensity = 18 * orbDim; orbHalo.material.opacity = 0.18 * orbDim;
+    const lit = Math.round(METER * orbDim);
+    meter.visible = (t > L.residue.start + 0.5 && pA > 0) ;
+    for (let i = 0; i < METER; i++) meter.setColorAt(i, new THREE.Color(i < lit ? C.cyan : 0x2a3566));
+    meter.instanceColor.needsUpdate = true;
+  }
+
+  // ---- workday bar (day, chop, block)
+  const barW = span('day', 'block'); const bA = env(t, barW);
+  const merge = ss(L.block.start + 0.1, L.block.start + 1.0, t);
+  const cutsT = cutIdx.map((_, j) => L.chop.start + 0.35 + j * 0.42);
+  let spread = 0;
+  segs.forEach((s, i) => {
+    const appear = eob((t - L.day.start - 0.05 - i * 0.04) / 0.35);
+    const vis = bA > 0.001 && appear > 0.001 && merge < 0.999;
+    s.m.visible = vis; if (!vis) return;
+    // gap grows after each cut to the left/right of the cut index
+    let dx = 0, hits = 0;
+    cutIdx.forEach((ci, j) => { const k = eo((t - cutsT[j]) / 0.3); hits += k; dx += (i > ci ? 0.11 : i < ci ? -0.11 : 0) * k; });
+    let h = 1, col = C.cyan;
+    if (s.cut >= 0) { const k = eo((t - cutsT[s.cut]) / 0.25); h = lerp(1, 0.35, k); col = k > 0.1 ? C.coral : C.cyan; }
+    else h = lerp(1, 0.62, ss(L.chop.start + 0.3, L.chop.end, t));
+    // merge: interruptions fly off, focus segments pack together
+    let x = s.x0 + dx, y = 0;
+    if (merge > 0) {
+      if (s.cut >= 0) { y = -merge * 4; }
+      else { const order = segs.filter(q => q.cut < 0).indexOf(s); const tx = (order - 4.5) * (SW + 0.0); x = lerp(x, tx, merge); h = lerp(h, 1.4, merge); }
+    }
+    s.m.scale.set(S(bA * appear), S(h * bA * appear), S(bA * appear));
+    s.m.position.set(x, y + h / 2 - 0.5, 0);
+    s.m.material.color.setHex(col); s.m.material.emissive.setHex(col);
+    s.m.material.emissiveIntensity = s.cut >= 0 && col === C.coral ? 0.9 : 0.4;
+  });
+  blades.forEach((b, j) => {
+    const u = (t - cutsT[j] + 0.25) / 0.25;
+    b.visible = bA > 0.001 && u > 0 && u < 2.2;
+    if (!b.visible) return;
+    const x0 = segs[cutIdx[j]].x0;
+    b.position.set(x0, lerp(4, 0.2, eo(u)), 0.1);
+    b.material.opacity = 1; b.scale.setScalar(S(1 - ss(1.4, 2.2, u)));
+  });
+  bigBlock.visible = merge > 0.95 && bA > 0.001;
+  if (bigBlock.visible) {
+    const g = eob((t - L.block.start - 1.0) / 0.5);
+    const w = 10 * SW, h = lerp(1.4, 2.0, g);
+    bigBlock.scale.set(S(w * bA), S(h * bA), S(bA)); bigBlock.position.set(0, h / 2 - 0.5, 0);
+    bigBlock.material.emissiveIntensity = 0.5 + 0.25 * Math.sin(t * 6);
+  }
+
+  // ---- output cubes (formula, beat)
+  const fw = span('formula', 'beat'); const fA = env(t, fw);
+  const beat = ss(L.beat.start, L.beat.start + 0.5, t);
+  cubesA.forEach(c => {
+    const k = eob((t - L.formula.start - 0.6 - c.d) / 0.45);
+    c.m.visible = fA > 0.001 && k > 0.001; if (!c.m.visible) return;
+    c.m.position.copy(c.p); c.m.position.y += (1 - clamp(k)) * 2.5;
+    c.m.scale.setScalar(S(fA * clamp(k * 1.2)));
+    c.m.rotation.set(0, 0.25, 0);
+    c.m.material.emissiveIntensity = lerp(0.3, 0.1, beat); c.m.material.opacity = 1;
+  });
+  cubesB.forEach(c => {
+    const k = eob((t - L.formula.start - 2.0 - c.d) / 0.45);
+    c.m.visible = fA > 0.001 && k > 0.001; if (!c.m.visible) return;
+    c.m.position.copy(c.p); c.m.position.y += (1 - clamp(k)) * 3;
+    c.m.scale.setScalar(S(fA * clamp(k * 1.2) * (1 + beat * 0.08 * Math.sin(t * 8 + c.d * 10))));
+    c.m.rotation.set(0, 0.25, 0);
+    c.m.material.emissiveIntensity = 0.4 + beat * 0.6;
+  });
+
+  // ---- steps
+  const stA = env(t, span('start', 'start'));
+  stepDots.forEach((m, i) => { const k = eob((t - L.start.start - 0.1 - i * 0.15) / 0.4); setVis(m, stA * clamp(k)); m.position.y = Math.sin(t * 3 + i) * 0.15; });
+  // s1 target
+  const s1A = env(t, span('s1', 's1'));
+  setVis(target, s1A);
+  if (target.visible) {
+    target.rotation.set(-0.15, 0.35 + Math.sin(t) * 0.08, 0);
+    const k = eo((t - L.s1.start - 0.2) / 0.45);
+    arrow.position.set(lerp(3.5, 0, k), lerp(3.5, 0, k), lerp(9, 0.2, k));
+    arrow.rotation.set(lerp(0.45, 0, k) - 0.35, lerp(-0.45, 0, k) + 0.25, 0);
+    const hit = Math.max(0, 1 - Math.abs(t - L.s1.start - 0.65) / 0.3);
+    target.children.forEach((c, i) => { if (c.material) c.material.emissiveIntensity = 0.35 + hit * (i % 2 ? 1.5 : 0.4); });
+  }
+  // s2 phone -> door
+  const s2A = env(t, span('s2', 's2'));
+  setVis(door, s2A);
+  if (s2A > 0.001) {
+    const u = t - L.s2.start;
+    door.position.set(0, 0.2, -3.5); door.rotation.y = -0.25;
+    const go = ss(0.35, 1.3, u);
+    phone.visible = true; phone.scale.setScalar(S(s2A * lerp(1.1, 0.6, go)));
+    phone.position.set(lerp(1.2, 0, go), lerp(-0.6, 0.2, go) + Math.sin(go * Math.PI) * 0.8, lerp(2.5, -5.5, go));
+    phone.rotation.set(0, lerp(-0.4, 0.2, go), lerp(0.2, 0, go));
+    phone.userData.notif.forEach(n => { n.visible = true; n.scale.setScalar(1); });
+    doorPivot.rotation.y = lerp(-1.35, 0, ss(1.3, 1.75, u));
+  }
+  // s3 timer
+  const s3A = env(t, span('s3', 's3'));
+  setVis(timer, s3A);
+  if (timer.visible) {
+    const fill = ss(L.s3.start + 0.15, L.s3.end, t);
+    const n = Math.round(fill * TICKS);
+    for (let i = 0; i < TICKS; i++) ticks.setColorAt(i, new THREE.Color(i < n ? C.amber : 0x2a3566));
+    ticks.instanceColor.needsUpdate = true;
+    hand.rotation.z = -fill * Math.PI * 2;
+    timer.rotation.set(-0.12, 0.2 * Math.sin(t * 0.8), 0);
+    const mins = Math.round(fill * 60);
+    timerLab.innerHTML = `<span style="font-variant-numeric:tabular-nums;color:var(--amber)">${mins}</span><small>minutes</small>`;
+    timerLab.style.marginTop = '150px';
+  }
+  // s4 shield + bouncing pings
+  setVis(shield, s4A);
+  if (shield.visible) { shieldWire.rotation.set(t * 0.2, t * 0.3, 0); shield.material.opacity = 0.16 + 0.1 * Math.sin(t * 4); }
+  bouncers.forEach(b => {
+    const u = (t - L.s4.start - b.t) / 0.9;
+    b.m.visible = s4A > 0.001 && u > 0 && u < 1;
+    if (!b.m.visible) return;
+    const d = u < 0.5 ? lerp(5.5, 1.85, eo(u / 0.5)) : lerp(1.85, 6, ss(0.5, 1, u));
+    b.m.position.copy(b.dir).multiplyScalar(d);
+    b.m.scale.setScalar(S(1 - ss(0.8, 1, u)));
+    if (Math.abs(u - 0.5) < 0.08) shield.material.opacity = 0.45;
+  });
+  // 30-day ring
+  const rbA = t >= L.rebuild.start - 0.2 ? Math.min(eo((t - L.rebuild.start + 0.2) / 0.4), 1 - ss(L.cta.start + 0.2, L.cta.start + 0.7, t)) : 0;
+  setVis(dayRing, rbA);
+  if (dayRing.visible) {
+    const n = Math.round(ss(L.rebuild.start + 0.2, L.rebuild.end - 0.2, t) * DAYS);
+    for (let i = 0; i < DAYS; i++) dayRing.setColorAt(i, new THREE.Color(i < n ? C.green : 0x2a3566));
+    dayRing.instanceColor.needsUpdate = true; dayRing.rotation.z = 0;
+  }
+
+  renderer.render(scene, camera);
+
+  // overlays
+  for (const o of OV) {
+    const a = env(t, o.win, 0.25, 0.2);
+    o.el.style.opacity = a.toFixed(3);
+    let tr = `translateY(${((1 - a) * 24).toFixed(1)}px)`;
+    if (o.anchor) {
+      _v.copy(o.anchor); root.localToWorld(_v); _v.project(camera);
+      o.el.style.left = ((_v.x * 0.5 + 0.5) * W).toFixed(1) + 'px';
+      o.el.style.top = ((-_v.y * 0.5 + 0.5) * H).toFixed(1) + 'px';
+      tr = 'translate(-50%,-50%) ' + tr;
+    }
+    o.el.style.transform = tr;
+  }
+  updateCaptions(t);
+  document.getElementById('fade').style.opacity = Math.max(1 - ss(0, 0.3, t), ss(DURATION - 0.6, DURATION, t)).toFixed(3);
+}
+
+window.DURATION = DURATION;
+window.setTime = t => { render(t); return true; };
+if (RENDER) { document.getElementById('hint').remove(); window.ready = true; return; }
+
+// live preview with audio
+const stage = document.getElementById('stage');
+const fit = () => { const s = Math.min(innerWidth / W, innerHeight / H); stage.style.transform = `scale(${s})`; };
+addEventListener('resize', fit); fit();
+const audio = new Audio('narration.wav');
+let playing = false, t = 0, last = performance.now();
+addEventListener('click', () => { playing = !playing; if (playing) { audio.currentTime = t; audio.play().catch(() => {}); } else audio.pause(); });
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 3); if (e.key === 'ArrowLeft') t = Math.max(0, t - 3); audio.currentTime = t; });
+(function loop(now) { const dt = (now - last) / 1000; last = now; if (playing) { t = audio.paused ? t + dt : audio.currentTime; if (t >= DURATION) { t = 0; playing = false; audio.pause(); } } render(t); requestAnimationFrame(loop); })(last);
+})();
+</script>
+</body>
+</html>
