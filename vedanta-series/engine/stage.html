@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>html,body{margin:0;background:#000;overflow:hidden}#stage{width:1080px;height:1920px}svg{display:block}</style>
+</head><body><div id="stage"></div>
+<script src="lib.js"></script>
+<script>
+// Loads an episode file + its timings, then exposes window.render(t).
+const q = new URLSearchParams(location.search);
+const epFile = q.get('ep');
+function load(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+window.ready = (async () => {
+  await load(`../episodes/${epFile}.js`);
+  await load(`../out/${epFile}/timings.js`); const TL = window.TIMINGS;
+  // group lines into scenes
+  const scenes = []; TL.lines.forEach((l, i) => {
+    const sc = scenes[scenes.length - 1];
+    if (sc && sc.name === l.scene) { sc.lines.push(l); sc.end = l.start + l.dur + l.pause; }
+    else scenes.push({ name: l.scene, start: i === 0 ? 0 : l.start - TL.lines[i - 1].pause * .6, end: l.start + l.dur + l.pause, lines: [l] });
+  });
+  scenes[scenes.length - 1].end = TL.total;
+  for (let i = 0; i < scenes.length - 1; i++) scenes[i].end = scenes[i + 1].start;
+  await Promise.all(['500','600','700','800'].map(w => document.fonts.load(`${w} 40px "Baloo 2"`, 'Abc अध्यास ā'))); await document.fonts.load('40px "Yatra One"', 'Abc'); await document.fonts.ready;
+  const stage = document.getElementById('stage');
+  window.render = (t) => {
+    let si = scenes.findIndex(s => t >= s.start && t < s.end); if (si < 0) si = scenes.length - 1;
+    const sc = scenes[si];
+    const lt = t - sc.start;
+    // line-relative helpers: at(k) = start of k-th line within this scene (scene-relative seconds)
+    const at = k => (sc.lines[Math.min(k, sc.lines.length - 1)].start - sc.start) + (k >= sc.lines.length ? sc.lines[sc.lines.length - 1].dur : 0);
+    const dl = k => sc.lines[Math.min(k, sc.lines.length - 1)].dur;
+    const ctx = { t, lt, d: sc.end - sc.start, at, dl, sc, TL, EP };
+    const fn = EP.scenes[sc.name];
+    let body = fn ? fn(ctx) : '';
+    // dip transition at scene boundaries
+    const D = .22;
+    const dipIn = si > 0 ? clamp(1 - lt / D) : 0;
+    const dipOut = si < scenes.length - 1 ? clamp(1 - (sc.end - t) / D) : 0;
+    const dip = Math.max(dipIn, dipOut), last = 1;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">${defs()}${body}
+      ${rect(0, 0, W, H, 'url(#vig)')}
+      ${rect(0, 1320, W, 300, 'url(#capbg)')}
+      ${captions(t, TL)}
+      ${chrome(t, EP, TL)}
+      ${rect(0, 0, W, H, '#0b0b2b', 0, `opacity="${(dip * .85 * last).toFixed(3)}"`)}
+      </svg>`;
+    stage.innerHTML = svg;
+  };
+  return { total: TL.total, fps: 30 };
+})();
+</script></body></html>
