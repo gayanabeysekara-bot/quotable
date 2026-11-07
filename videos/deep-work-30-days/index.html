@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Work 30 Days</title>
+<style>
+  :root { --bg:#070b18; --ink:#f4f7ff; --muted:#9aa7c7; --cyan:#38e1ff; --coral:#ff5a6e; --amber:#ffc35a; --violet:#9b8bff; --green:#4ade80; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; font-family: Inter, "Inter Display", system-ui, sans-serif; }
+  #stage { position:relative; width:1920px; height:1080px; transform-origin:center center; background:var(--bg); overflow:hidden; }
+  canvas { position:absolute; inset:0; width:1920px; height:1080px; display:block; }
+  #ui { position:absolute; inset:0; pointer-events:none; color:var(--ink); }
+  .el { position:absolute; opacity:0; will-change:opacity,transform; }
+  .center { left:0; right:0; text-align:center; }
+  .title { font-family:"Inter Display", Inter, sans-serif; font-weight:800; letter-spacing:-0.02em; line-height:0.95; text-shadow:0 8px 40px rgba(0,0,0,.6); }
+  .kicker { font-weight:700; letter-spacing:.32em; text-transform:uppercase; font-size:30px; color:var(--cyan); }
+  .hl { color:var(--cyan); }
+  .co { color:var(--coral); }
+  .am { color:var(--amber); }
+  .label { font-weight:700; font-size:34px; transform:translate(-50%,0); white-space:nowrap; text-align:center; }
+  .label small { display:block; font-weight:500; font-size:24px; color:var(--muted); margin-top:6px; }
+  .src { font-size:24px; color:var(--muted); font-weight:500; letter-spacing:.02em; }
+  #cap { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); max-width:1500px; text-align:center; font-size:40px; font-weight:600; line-height:1.3; padding:14px 30px; border-radius:14px; background:rgba(5,8,20,.62); color:#fff; opacity:0; }
+  .week { font-size:34px; font-weight:700; margin-bottom:6px; }
+  .week small { display:block; font-size:26px; font-weight:500; color:var(--muted); margin-top:4px; }
+  .pill { display:inline-block; padding:18px 44px; border-radius:999px; background:var(--coral); color:#fff; font-weight:800; font-size:38px; letter-spacing:.08em; }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; }
+  #hint { position:fixed; bottom:10px; left:10px; color:#667; font:12px Inter, sans-serif; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1920" height="1080"></canvas>
+  <div id="ui"></div>
+  <div id="cap"></div>
+  <div id="fade"></div>
+</div>
+<div id="hint">Click to pause/play · ←/→ seek</div>
+<script src="three.min.js"></script>
+<script>
+(() => {
+const DURATION = 102;
+const W = 1920, H = 1080;
+const RENDER = new URLSearchParams(location.search).has('render');
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const easeOut = t => 1 - Math.pow(1 - clamp(t), 3);
+const lerp = (a, b, t) => a + (b - a) * t;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(42);
+const inWin = (t, a, b, pad = 0.5) => t >= a - pad && t <= b + pad;
+
+const C = { cyan: 0x38e1ff, coral: 0xff5a6e, amber: 0xffc35a, violet: 0x9b8bff, green: 0x4ade80, slate: 0x1a2340 };
+
+// ---------- three setup ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070b18);
+scene.fog = new THREE.FogExp2(0x070b18, 0.028);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 300);
+
+scene.add(new THREE.AmbientLight(0x8090c0, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(6, 10, 8); scene.add(key);
+const rim = new THREE.DirectionalLight(0x6a7dff, 0.8); rim.position.set(-8, 4, -6); scene.add(rim);
+
+// starfield (always on)
+const stars = (() => {
+  const n = 1800, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 40 + R() * 80, th = R() * Math.PI * 2, ph = Math.acos(2 * R() - 1);
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph); pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8fa3ff, size: 0.35, transparent: true, opacity: 0.7, fog: false }));
+  scene.add(p); return p;
+})();
+
+// floor grid (formula / pillars / calendar / tower)
+const grid = new THREE.GridHelper(60, 60, 0x2a3870, 0x151d3a);
+grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
+
+// ---------- shared focus core ----------
+const core = new THREE.Group(); scene.add(core);
+const coreMat = new THREE.MeshStandardMaterial({ color: C.cyan, emissive: C.cyan, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.1, flatShading: true });
+const coreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2), coreMat); core.add(coreMesh);
+const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.45, 1), new THREE.MeshBasicMaterial({ color: C.cyan, wireframe: true, transparent: true, opacity: 0.35 }));
+core.add(shell);
+const coreLight = new THREE.PointLight(C.cyan, 30, 20, 1.6); core.add(coreLight);
+
+// ---------- 1. hook: notification swarm ----------
+const NOTI = 240;
+const notiMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.62, 0.36, 0.06), new THREE.MeshStandardMaterial({ roughness: 0.4, emissiveIntensity: 0.5 }), NOTI);
+const notiData = [];
+const palette = [C.coral, C.amber, C.violet, 0xffffff];
+for (let i = 0; i < NOTI; i++) {
+  const r = 3 + R() * 8, th = R() * Math.PI * 2, ph = Math.acos(2 * R() - 1);
+  notiData.push({
+    p: new THREE.Vector3(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.6, r * Math.sin(ph) * Math.sin(th)),
+    spin: new THREE.Vector3(R() - .5, R() - .5, R() - .5).multiplyScalar(4), ph: R() * 10, delay: R() * 1.2
+  });
+  notiMesh.setColorAt(i, new THREE.Color(palette[i % 4]));
+}
+notiMesh.material.emissive = new THREE.Color(0x331018);
+scene.add(notiMesh);
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(), _v = new THREE.Vector3();
+
+// ---------- 2. distraction pings ----------
+const PINGS = 10;
+const pings = [];
+for (let i = 0; i < PINGS; i++) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 16), new THREE.MeshStandardMaterial({ color: C.coral, emissive: C.coral, emissiveIntensity: 1.2 }));
+  scene.add(m);
+  pings.push({ m, r: 3.4 + R() * 1.4, speed: 0.5 + R() * 0.6, phase: R() * 6.28, tilt: (R() - .5) * 1.4, hit: 9 + i * 1.05 });
+}
+
+// ---------- 3. attention residue ----------
+const A = new THREE.Vector3(-3.4, 0, 0), B = new THREE.Vector3(3.4, 0, 0);
+const ringMat = c => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.8 });
+const ringA = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.04, 12, 90), ringMat(0x6c7aa8)); ringA.position.copy(A); scene.add(ringA);
+const ringB = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.04, 12, 90), ringMat(C.cyan)); ringB.position.copy(B); scene.add(ringB);
+const RES = 700;
+const resPos = new Float32Array(RES * 3);
+const resData = [];
+for (let i = 0; i < RES; i++) {
+  const off = new THREE.Vector3(R() - .5, R() - .5, R() - .5).normalize().multiplyScalar(0.6 + R() * 1.2);
+  resData.push({ off, delay: R() * 2.5, dur: 1 + R() * 3, max: R() < 0.45 ? 0.15 + R() * 0.45 : 0.75 + R() * 0.25, sw: R() * 6.28 });
+}
+const resGeo = new THREE.BufferGeometry(); resGeo.setAttribute('position', new THREE.BufferAttribute(resPos, 3));
+const residue = new THREE.Points(resGeo, new THREE.PointsMaterial({ color: 0x9fefff, size: 0.09, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+scene.add(residue);
+
+// ---------- 4. formula boxes ----------
+function glowBox(color) {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.3, transparent: true, opacity: 0.92 }));
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }));
+  g.add(m, e); scene.add(g); return g;
+}
+const boxA = glowBox(C.coral), boxB = glowBox(C.cyan);
+
+// ---------- 5. four pillars ----------
+const pillarColors = [C.cyan, C.violet, C.amber, C.green];
+const pillars = pillarColors.map((c, i) => {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 1, 40), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.25, roughness: 0.35, metalness: 0.2 }));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 12, 80), new THREE.MeshBasicMaterial({ color: c }));
+  ring.rotation.x = Math.PI / 2;
+  g.add(body, ring); g.position.x = -5.1 + i * 3.4; scene.add(g);
+  return { g, body, ring, start: 44 + i * 3.5 };
+});
+
+// ---------- 6. 30-day calendar ----------
+const weekColor = d => d <= 7 ? C.cyan : d <= 14 ? C.violet : d <= 21 ? C.amber : C.green;
+const weekWin = [[1, 7, 62, 65.6], [8, 14, 66, 69.6], [15, 21, 70, 73.6], [22, 30, 74, 79.2]];
+function litTime(d) { for (const [a, b, t0, t1] of weekWin) if (d >= a && d <= b) return lerp(t0, t1, (d - a) / Math.max(1, b - a)); }
+const CAL_OFF = new THREE.Vector3(3.0, 0, 0);
+const tiles = [];
+for (let d = 1; d <= 30; d++) {
+  const col = (d - 1) % 6, row = Math.floor((d - 1) / 6);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.25, 1.15), new THREE.MeshStandardMaterial({ color: C.slate, emissive: 0x000000, roughness: 0.4 }));
+  m.position.set(CAL_OFF.x + (col - 2.5) * 1.4, 0.13, CAL_OFF.z + (row - 2) * 1.4);
+  scene.add(m); tiles.push({ m, d, t: litTime(d), col: new THREE.Color(weekColor(d)) });
+}
+
+// ---------- 7. tower of deep hours ----------
+const hoursFor = d => d <= 7 ? 1 : d <= 14 ? 2 : d <= 21 ? 2.5 : 3;
+const TOTAL_HOURS = Array.from({ length: 30 }, (_, i) => hoursFor(i + 1)).reduce((a, b) => a + b, 0); // 65.5
+const SLAB = 0.1;
+const slabs = []; let acc = 0;
+for (let d = 1; d <= 30; d++) {
+  const h = hoursFor(d) * SLAB;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(2.4, h * 0.92, 2.4), new THREE.MeshStandardMaterial({ color: weekColor(d), emissive: weekColor(d), emissiveIntensity: 0.3, roughness: 0.3 }));
+  scene.add(m); slabs.push({ m, y: acc + h / 2, t: 80.8 + (d - 1) * 0.17, cum: 0 }); acc += h;
+}
+{ let c = 0; slabs.forEach((s, i) => { c += hoursFor(i + 1); s.cum = c; }); }
+const TOWER_H = acc;
+
+// ---------- 8. outro ring ----------
+const RING = 1600;
+const ringPos = new Float32Array(RING * 3); const ringSeed = [];
+for (let i = 0; i < RING; i++) ringSeed.push({ a: R() * Math.PI * 2, r: 4.2 + (R() - .5) * 0.9, y: (R() - .5) * 0.5, s: 0.15 + R() * 0.3 });
+const ringGeo = new THREE.BufferGeometry(); ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
+const outroRing = new THREE.Points(ringGeo, new THREE.PointsMaterial({ color: C.cyan, size: 0.07, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+scene.add(outroRing);
+
+// ---------- overlay text ----------
+const ui = document.getElementById('ui');
+const T = []; // {t0,t1,el,anchor?,dy}
+function txt(t0, t1, html, style = '', cls = '', anchor = null) {
+  const el = document.createElement('div'); el.className = 'el ' + cls; el.style.cssText = style; el.innerHTML = html; ui.appendChild(el);
+  T.push({ t0, t1, el, anchor }); return el;
+}
+// 1 hook
+txt(4.3, 7.8, '<div class="kicker">A 30-day experiment</div><div class="title" style="font-size:150px;margin-top:22px">I tried <span class="hl">Deep Work</span><br>for 30 days</div>', 'top:290px', 'center');
+// 2 distraction
+txt(8.4, 13.8, '<div class="kicker co" style="color:var(--coral)">The problem</div><div class="title" style="font-size:96px;margin-top:16px">Every ping<br>steals focus</div>', 'top:110px;left:120px;');
+txt(14.2, 19.7, '<div class="title" style="font-size:180px;color:var(--coral)">~23 min</div><div style="font-size:40px;font-weight:600;margin-top:10px">to fully get back on task<br>after an interruption</div><div class="src" style="margin-top:18px">Gloria Mark, UC Irvine</div>', 'top:200px;right:120px;text-align:right;');
+// 3 residue
+txt(20.4, 24.6, '<div class="title" style="font-size:44px;color:var(--muted)">Task A</div>', '', 'label', new THREE.Vector3(-3.4, -2.3, 0));
+txt(20.4, 29.7, '<div class="title" style="font-size:44px;color:var(--cyan)">Task B</div>', '', 'label', new THREE.Vector3(3.4, -2.3, 0));
+txt(25.0, 29.7, '<div class="kicker">The hidden cost</div><div class="title" style="font-size:110px;margin-top:16px">Attention Residue</div><div class="src" style="margin-top:14px">Sophie Leroy, 2009</div>', 'top:90px', 'center');
+// 4 formula
+txt(30.5, 41.7, '<div class="title" style="font-size:100px">Work = <span class="am">Time</span> × <span class="hl">Focus</span></div><div class="src" style="margin-top:14px">Cal Newport, <i>Deep Work</i></div>', 'top:80px', 'center');
+txt(33.0, 41.7, '4 hours<small>distracted</small>', 'color:var(--coral)', 'label', new THREE.Vector3(-3.2, -0.25, 0.6));
+txt(38.0, 41.7, '2 hours<small>deep focus</small>', 'color:var(--cyan)', 'label', new THREE.Vector3(3.2, -0.25, 0.6));
+txt(39.0, 41.7, '<div class="title" style="font-size:60px">More output.<span class="hl"> Less time.</span></div>', 'top:250px', 'center');
+// 5 rules
+txt(42.5, 57.7, '<div class="kicker">The book in one line</div><div class="title" style="font-size:96px;margin-top:14px">4 Rules</div>', 'top:70px', 'center');
+const ruleNames = [['Work deeply', 'block time, guard it'], ['Embrace boredom', 'stop reaching for the phone'], ['Quit social media', 'or use it on purpose'], ['Drain the shallows', 'shrink the busywork']];
+ruleNames.forEach(([a, b], i) => txt(pillars[i].start + 0.3, 57.7, `<span style="color:#fff">${i + 1} · ${a}</span><small>${b}</small>`, 'font-size:30px', 'label', new THREE.Vector3(-5.1 + i * 3.4, -0.5, 0.8)));
+// 6 calendar
+txt(58.5, 79.7, '<div class="kicker">The experiment</div><div class="title" style="font-size:88px;margin-top:12px">The 30-day plan</div>', 'top:100px;left:110px;');
+const weeks = [
+  [62, 'hl', 'Week 1 · 1 hr / day', 'one block, phone in another room'],
+  [66, '', 'Week 2 · 2 hrs / day', 'plus a fixed shutdown time'],
+  [70, 'am', 'Week 3 · 2.5 hrs / day', 'no phone when bored'],
+  [74, '', 'Days 22–30 · 3 hrs / day', 'shallow work batched into one slot'],
+];
+const wkColors = ['var(--cyan)', 'var(--violet)', 'var(--amber)', 'var(--green)'];
+weeks.forEach(([t0, , a, b], i) => txt(t0, 79.7, `<div class="week" style="color:${wkColors[i]}">${a}<small>${b}</small></div>`, `top:${340 + i * 130}px;left:110px;`));
+const dayEl = txt(61.8, 79.7, '', 'top:110px;right:120px;text-align:right;');
+// 7 tower
+txt(80.4, 89.7, '<div class="kicker">The total</div>', 'top:150px;left:120px;');
+const hoursEl = txt(80.4, 89.7, '', 'top:205px;left:120px;');
+txt(85.8, 89.7, '<div style="font-size:42px;font-weight:600;max-width:640px;line-height:1.3">of deep, undistracted work. <span style="color:var(--muted)">The real test: what it produces.</span></div>', 'top:440px;left:120px;');
+// 8 outro
+txt(90.6, 96.4, '<div class="title" style="font-size:72px;line-height:1.15;max-width:1450px;margin:0 auto">“Who you are, what you think, feel, and do, what you love — is the sum of what you <span class="hl">focus on</span>.”</div><div class="src" style="margin-top:28px;font-size:30px">— Winifred Gallagher, quoted in <i>Deep Work</i></div>', 'top:300px', 'center');
+txt(96.8, 101.6, '<div class="title" style="font-size:110px">Try it for <span class="hl">30 days.</span></div><div style="font-size:42px;font-weight:600;margin-top:22px;color:var(--muted)">Track your hours. Share your results in the comments.</div><div style="margin-top:56px"><span class="pill">SUBSCRIBE</span></div>', 'top:290px', 'center');
+
+// narration captions
+const CAPS = [
+  [0.3, 4.0, 'Every day, hundreds of tiny interruptions steal your focus.'],
+  [4.1, 7.8, 'So I tried an experiment: thirty days of Deep Work.'],
+  [8.3, 13.9, 'Every ping, every tab, every “quick check” pulls your attention away.'],
+  [14.0, 19.8, 'Research by Gloria Mark found it can take around 23 minutes to fully get back on task.'],
+  [20.3, 24.9, 'And even when you switch back, part of your mind stays behind.'],
+  [25.0, 29.8, 'Psychologist Sophie Leroy calls this attention residue.'],
+  [30.3, 35.9, 'Cal Newport’s idea is simple: what you produce = time × intensity of focus.'],
+  [36.0, 41.8, 'Two focused hours can beat four distracted ones.'],
+  [42.3, 44.0, 'His book boils it down to four rules.'],
+  [44.0, 47.4, 'One: work deeply.'],
+  [47.5, 50.9, 'Two: embrace boredom.'],
+  [51.0, 54.4, 'Three: quit social media — or at least use it on purpose.'],
+  [54.5, 57.8, 'Four: drain the shallows. Shrink the busywork.'],
+  [58.3, 61.9, 'Here’s the 30-day plan.'],
+  [62.0, 65.9, 'Week one: one 60-minute deep-work block a day, phone in another room.'],
+  [66.0, 69.9, 'Week two: two hours a day, and a fixed shutdown time.'],
+  [70.0, 73.9, 'Week three: two and a half hours — and no phone when I’m bored.'],
+  [74.0, 79.8, 'Final stretch: three hours a day, with shallow work batched into one slot.'],
+  [80.3, 85.6, 'That adds up to about sixty-five hours of deep work.'],
+  [85.7, 89.8, 'The real test is what that time produces.'],
+  [90.4, 96.5, '“Who you are… is the sum of what you focus on.”'],
+  [96.7, 101.7, 'Try it for 30 days, track your hours, and tell me your results in the comments.'],
+];
+const capEl = document.getElementById('cap');
+const fadeEl = document.getElementById('fade');
+const CUTS = [8, 20, 30, 42, 58, 80, 90];
+
+function fadeAlpha(t, t0, t1, d = 0.45) { return Math.min(ss(t0, t0 + d, t), 1 - ss(t1 - d, t1, t)); }
+
+// ---------- camera path ----------
+const camPos = new THREE.Vector3(), camTgt = new THREE.Vector3();
+function setCam(t) {
+  if (t < 8) { camPos.set(Math.sin(t * 0.15) * 2, 0.6, lerp(16, 11, easeOut(t / 8))); camTgt.set(0, 0, 0); }
+  else if (t < 20) { const a = (t - 8) * 0.08; camPos.set(Math.sin(a) * 10.5, 1.4, Math.cos(a) * 10.5); camTgt.set(0, 0, 0); }
+  else if (t < 30) { camPos.set(lerp(-1.2, 1.2, (t - 20) / 10), 1.2, 12.5); camTgt.set(0, 0, 0); }
+  else if (t < 42) { const k = (t - 30) / 12; camPos.set(lerp(-1.5, 1.5, k), 3.3, lerp(13.5, 12.2, k)); camTgt.set(0, 1.0, 0); }
+  else if (t < 58) { const k = (t - 42) / 16; camPos.set(lerp(-2, 2, k), 3.2, lerp(15, 13.5, k)); camTgt.set(0, 1.6, 0); }
+  else if (t < 80) { const k = (t - 58) / 22; camPos.set(CAL_OFF.x + lerp(-1.5, 0.5, k) - 4.2, lerp(10.5, 9.5, k), lerp(9.5, 8.5, k)); camTgt.set(CAL_OFF.x - 4.2, 0, -0.7); }
+  else if (t < 90) { const a = (t - 80) * 0.12 + 0.6; camPos.set(2.2 + Math.sin(a) * 2.5, 4.5, 12.5); camTgt.set(-1.2, 3.2, 0); }
+  else { const k = (t - 90) / 12; camPos.set(0, lerp(3.5, 1.2, k), lerp(13, 11, k)); camTgt.set(0, 0, 0); }
+  camera.position.copy(camPos); camera.lookAt(camTgt);
+}
+
+// ---------- frame ----------
+function render(t) {
+  setCam(t);
+  stars.rotation.y = t * 0.01;
+  grid.visible = t >= 29.5 && t < 90.5;
+
+  // core
+  let coreVis = false, coreS = 1, coreX = 0, coreGlow = 0.9;
+  if (t >= 5.6 && t < 30.5) {
+    coreVis = true;
+    coreS = t < 8 ? easeOut((t - 5.6) / 1.4) : 1;
+    if (t >= 8 && t < 20) {
+      let hits = 0, flash = 0;
+      for (const p of pings) { if (t >= p.hit) hits++; const dt = t - p.hit; if (dt >= 0 && dt < 0.5) flash = Math.max(flash, 1 - dt / 0.5); }
+      coreS = 1 - hits * 0.035 + flash * 0.12;
+      coreGlow = lerp(0.9, 0.25, hits / PINGS) + flash * 2.5;
+      coreMesh.position.set((R() - .5) * 0.12 * flash, (R() - .5) * 0.12 * flash, 0);
+      coreMat.color.setHex(flash > 0.3 ? 0xffffff : C.cyan);
+    } else { coreMesh.position.set(0, 0, 0); coreMat.color.setHex(C.cyan); }
+    if (t >= 20) {
+      const sw = easeOut((t - 21) / 2);
+      coreX = lerp(A.x, B.x, sw);
+      coreS = t < 21 ? lerp(0.65, 0.8, ss(20, 21, t)) : 0.8;
+      coreGlow = 0.9 * lerp(1, 0.55, ss(22, 26, t));
+    }
+  } else if (t >= 90) { coreVis = true; coreS = easeOut((t - 90) / 1.5) * 0.9; coreGlow = 1.1; }
+  core.visible = coreVis;
+  core.position.set(coreX, t >= 90 ? -2.2 : 0, 0);
+  core.scale.setScalar(Math.max(0.001, coreS));
+  coreMat.emissiveIntensity = coreGlow;
+  coreLight.intensity = 25 * coreGlow;
+  coreMesh.rotation.set(t * 0.3, t * 0.45, 0);
+  shell.rotation.set(-t * 0.2, -t * 0.3, t * 0.1);
+
+  // 1. notifications
+  notiMesh.visible = t < 8.2;
+  if (notiMesh.visible) {
+    for (let i = 0; i < NOTI; i++) {
+      const d = notiData[i];
+      const k = easeOut((t - 4.4 - d.delay) / 1.6);
+      _v.copy(d.p).multiplyScalar(1 - k);
+      _v.x += Math.sin(t * 1.3 + d.ph) * 0.25 * (1 - k); _v.y += Math.cos(t * 1.1 + d.ph) * 0.25 * (1 - k);
+      _e.set(d.spin.x * t, d.spin.y * t, d.spin.z * t); _q.setFromEuler(_e);
+      const pop = easeOut((t - d.delay * 0.6) / 0.6);
+      _s.setScalar(Math.max(0.001, pop * (1 - k)));
+      _m.compose(_v, _q, _s); notiMesh.setMatrixAt(i, _m);
+    }
+    notiMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // 2. pings
+  for (const p of pings) {
+    const vis = inWin(t, 8, 20, 0.3) && !(t > p.hit && t < p.hit + 0.9);
+    p.m.visible = vis;
+    if (!vis) continue;
+    const a = p.phase + t * p.speed;
+    const orbit = _v.set(Math.cos(a) * p.r, Math.sin(a * 0.7) * p.tilt * 1.2, Math.sin(a) * p.r);
+    const dive = ss(p.hit - 0.6, p.hit, t);
+    p.m.position.copy(orbit).multiplyScalar(1 - dive * 0.75);
+    const back = t >= p.hit + 0.9 ? easeOut((t - p.hit - 0.9) / 0.4) : 1;
+    p.m.scale.setScalar(Math.max(0.001, back * (1 + 0.15 * Math.sin(t * 8 + p.phase))));
+  }
+
+  // 3. residue
+  const resVis = t >= 19.6 && t < 30.4;
+  residue.visible = ringA.visible = ringB.visible = resVis;
+  if (resVis) {
+    const ra = ss(19.8, 20.8, t);
+    ringA.scale.setScalar(Math.max(0.001, ra)); ringB.scale.setScalar(Math.max(0.001, ra));
+    ringA.rotation.set(Math.PI / 2 * 0.15, t * 0.2, 0); ringB.rotation.set(Math.PI / 2 * 0.15, -t * 0.2, 0);
+    for (let i = 0; i < RES; i++) {
+      const d = resData[i];
+      const k = easeOut((t - 21 - d.delay) / d.dur) * d.max;
+      const sw = d.sw + t * 0.9;
+      const spread = lerp(1, 0.5, k) * (t < 21 ? ss(20, 21, t) : 1);
+      resPos[i * 3] = lerp(A.x, B.x, k) + (d.off.x * Math.cos(sw) - d.off.z * Math.sin(sw)) * spread;
+      resPos[i * 3 + 1] = d.off.y * spread + Math.sin(sw * 1.3) * 0.08;
+      resPos[i * 3 + 2] = (d.off.x * Math.sin(sw) + d.off.z * Math.cos(sw)) * spread;
+    }
+    resGeo.attributes.position.needsUpdate = true;
+    residue.material.opacity = 0.9 * fadeAlpha(t, 19.8, 30.2, 0.6);
+  }
+
+  // 4. formula
+  const fVis = t >= 29.6 && t < 42.4;
+  boxA.visible = boxB.visible = fVis;
+  if (fVis) {
+    const ga = easeOut((t - 31.5) / 1.5), gb = easeOut((t - 36) / 1.8);
+    const wa = Math.max(0.001, 4 * ga), ha = 0.6 * ga + 0.001, wb = Math.max(0.001, 2 * gb), hb = 2.0 * gb + 0.001;
+    boxA.scale.set(wa * 1.1, ha * 1.1, 1.1); boxA.position.set(-3.2, ha * 0.55, 0);
+    boxB.scale.set(wb * 1.1, hb * 1.1, 1.1); boxB.position.set(3.2, hb * 0.55, 0);
+    boxB.children[0].material.emissiveIntensity = 0.35 + 0.25 * Math.sin(t * 3) * gb;
+  }
+
+  // 5. pillars
+  const pVis = t >= 41.6 && t < 58.4;
+  pillars.forEach((p, i) => {
+    p.g.visible = pVis;
+    if (!pVis) return;
+    const k = easeOut((t - p.start) / 1.1);
+    const h = Math.max(0.001, 3.2 * k);
+    p.body.scale.set(1, h, 1); p.body.position.y = h / 2;
+    p.ring.position.y = h + 0.25; p.ring.scale.setScalar(Math.max(0.001, k));
+    p.ring.rotation.z = t * 1.5;
+    const active = t >= p.start && t < p.start + 3.5;
+    p.body.material.emissiveIntensity = lerp(p.body.material.emissiveIntensity, active ? 0.9 : 0.25, 1);
+  });
+
+  // 6. calendar
+  const cVis = t >= 57.6 && t < 80.4;
+  let lit = 0;
+  tiles.forEach(tl => {
+    tl.m.visible = cVis;
+    if (!cVis) return;
+    const appear = easeOut((t - 58.3 - tl.d * 0.04) / 0.6);
+    const on = t >= tl.t; if (on) lit = Math.max(lit, tl.d);
+    const k = ss(tl.t, tl.t + 0.35, t);
+    const bounce = Math.sin(clamp((t - tl.t) / 0.5) * Math.PI) * 0.6;
+    tl.m.scale.set(Math.max(0.001, appear), Math.max(0.001, appear * (1 + k * 1.8)), Math.max(0.001, appear));
+    tl.m.position.y = 0.13 * (1 + k * 1.8) + bounce;
+    tl.m.material.color.copy(new THREE.Color(C.slate).lerp(tl.col, k));
+    tl.m.material.emissive.copy(tl.col).multiplyScalar(k * 0.45);
+  });
+  dayEl.innerHTML = `<div class="src" style="font-size:30px;letter-spacing:.3em">DAY</div><div class="title" style="font-size:150px">${lit || '—'}<span style="font-size:60px;color:var(--muted)"> / 30</span></div>`;
+
+  // 7. tower
+  const twVis = t >= 79.6 && t < 90.4;
+  let cum = 0;
+  slabs.forEach((s, i) => {
+    s.m.visible = twVis && t >= s.t;
+    if (!s.m.visible) return;
+    const k = easeOut((t - s.t) / 0.45);
+    s.m.position.set(2.2, s.y + (1 - k) * 4, 0);
+    s.m.rotation.y = (1 - k) * 0.8 + t * 0.15;
+    s.m.material.opacity = 1;
+    if (k > 0.5) cum = s.cum;
+  });
+  hoursEl.innerHTML = `<div class="title" style="font-size:220px;color:var(--green)">${cum.toFixed(cum % 1 ? 1 : 0)}<span style="font-size:80px;color:#fff"> hrs</span></div>`;
+
+  // 8. outro ring
+  const oVis = t >= 89.6;
+  outroRing.visible = oVis;
+  if (oVis) {
+    const k = easeOut((t - 90) / 2.5);
+    for (let i = 0; i < RING; i++) {
+      const s = ringSeed[i]; const a = s.a + t * s.s;
+      const r = lerp(s.r * 3.5, s.r, k);
+      ringPos[i * 3] = Math.cos(a) * r; ringPos[i * 3 + 1] = s.y + Math.sin(a * 3 + t) * 0.15; ringPos[i * 3 + 2] = Math.sin(a) * r;
+    }
+    ringGeo.attributes.position.needsUpdate = true;
+    outroRing.rotation.x = 0.35; outroRing.position.y = -2.2;
+    outroRing.material.opacity = 0.95 * k * (1 - ss(100.8, 102, t));
+  }
+
+  renderer.render(scene, camera);
+
+  // overlays
+  for (const o of T) {
+    const a = fadeAlpha(t, o.t0, o.t1);
+    o.el.style.opacity = a.toFixed(3);
+    let tr = `translateY(${((1 - a) * 18).toFixed(1)}px)`;
+    if (o.anchor) {
+      _v.copy(o.anchor).project(camera);
+      o.el.style.left = ((_v.x * 0.5 + 0.5) * W).toFixed(1) + 'px';
+      o.el.style.top = ((-_v.y * 0.5 + 0.5) * H).toFixed(1) + 'px';
+      tr = 'translate(-50%,0) ' + tr;
+    }
+    o.el.style.transform = tr;
+  }
+  const cap = CAPS.find(c => t >= c[0] && t <= c[1]);
+  if (cap) { capEl.textContent = cap[2]; capEl.style.opacity = fadeAlpha(t, cap[0], cap[1], 0.2).toFixed(3); } else capEl.style.opacity = 0;
+
+  let f = 1 - ss(0, 0.8, t);
+  for (const c of CUTS) f = Math.max(f, 1 - clamp(Math.abs(t - c) / 0.4));
+  f = Math.max(f, ss(101, 102, t));
+  fadeEl.style.opacity = f.toFixed(3);
+}
+
+window.DURATION = DURATION;
+window.setTime = t => { render(t); return true; };
+
+if (RENDER) { document.getElementById('hint').remove(); window.ready = true; return; }
+
+// interactive playback
+const stage = document.getElementById('stage');
+const fit = () => { const s = Math.min(innerWidth / W, innerHeight / H); stage.style.transform = `scale(${s})`; };
+addEventListener('resize', fit); fit();
+let playing = true, t = 0, last = performance.now();
+addEventListener('click', () => { playing = !playing; });
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 5); if (e.key === 'ArrowLeft') t = Math.max(0, t - 5); if (e.key === ' ') playing = !playing; });
+(function loop(now) { const dt = (now - last) / 1000; last = now; if (playing) { t += dt; if (t > DURATION) t = 0; } render(t); requestAnimationFrame(loop); })(last);
+})();
+</script>
+</body>
+</html>
