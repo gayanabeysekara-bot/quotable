@@ -5,7 +5,7 @@ const { spawn, spawnSync } = require('child_process');
 // Narration: Kokoro "am_michael", pitched ~5% deeper (duration unchanged) with a short courtyard echo,
 // mixed over the drum / drone sound design from mix.py.
 const AUDIO_FILTER = '[1:a]aresample=48000,asetrate=45600,aresample=48000,atempo=1.0526316,aecho=0.8:0.55:55|110:0.10|0.05,aformat=channel_layouts=stereo,volume=1.25[v];' +
-  '[2:a]volume=0.55[m];[v][m]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]';
+  '[2:a]volume=0.55[m];[v][m]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]';
 const path = require('path');
 
 const args = process.argv.slice(2);
