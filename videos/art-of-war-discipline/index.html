@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discipline Is a Decision</title>
+<style>
+  :root { --gold:#f2c46d; --red:#e0383e; --ink:#f5efe6; --muted:#b8a998; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; font-family: Inter, system-ui, sans-serif; }
+  #stage { position:relative; width:1080px; height:1920px; transform-origin:center center; overflow:hidden;
+    background: radial-gradient(110% 60% at 50% 42%, #2a120f 0%, #120807 50%, #050303 100%); }
+  canvas { position:absolute; inset:0; width:1080px; height:1920px; display:block; }
+  #ui { position:absolute; inset:0; pointer-events:none; color:var(--ink); }
+  .el { position:absolute; opacity:0; }
+  .center { left:0; right:0; text-align:center; }
+  .serif { font-family:"DejaVu Serif", "Liberation Serif", serif; }
+  .title { font-family:"DejaVu Serif", serif; font-weight:700; text-transform:uppercase; letter-spacing:.06em; line-height:1.08; text-shadow:0 6px 30px rgba(0,0,0,.85); }
+  .kick { font-weight:700; letter-spacing:.38em; font-size:28px; text-transform:uppercase; color:var(--gold); text-shadow:0 2px 12px rgba(0,0,0,.9); }
+  .quote { font-family:"DejaVu Serif", serif; font-style:italic; font-size:58px; line-height:1.25; padding:0 80px; text-shadow:0 6px 26px rgba(0,0,0,.9); }
+  .src { font-size:26px; color:var(--muted); letter-spacing:.06em; margin-top:22px; font-style:normal; font-family:Inter, sans-serif; }
+  .lab { font-weight:800; letter-spacing:.25em; font-size:30px; transform:translate(-50%,-50%); white-space:nowrap; color:var(--gold); text-shadow:0 3px 14px rgba(0,0,0,.95); }
+  .cmd { font-family:"DejaVu Serif", serif; font-weight:700; font-size:150px; letter-spacing:.08em; color:var(--gold); text-shadow:0 10px 40px rgba(0,0,0,.9); }
+  .cjk { font-family:"WenQuanYi Zen Hei", sans-serif; text-align:center; font-size:110px; color:var(--gold); text-shadow:0 8px 30px rgba(0,0,0,.9); }
+  #cap { position:absolute; left:50px; right:50px; top:1300px; text-align:center; font-family:"Inter Display", Inter, sans-serif; font-weight:800;
+    font-size:84px; line-height:1.1; text-transform:uppercase; }
+  #cap span { display:inline-block; margin:0 11px; color:#fff; -webkit-text-stroke:3px rgba(0,0,0,.6); paint-order:stroke fill; text-shadow:0 8px 28px rgba(0,0,0,.75); }
+  #cap span.on { color:var(--gold); }
+  .pill { display:inline-block; padding:22px 60px; border-radius:999px; background:var(--red); font-weight:800; font-size:50px; letter-spacing:.1em; box-shadow:0 10px 40px rgba(224,56,62,.45); }
+  #vig { position:absolute; inset:0; background:radial-gradient(70% 55% at 50% 45%, rgba(0,0,0,0) 40%, rgba(150,10,10,.85) 100%); opacity:0; }
+  #shade { position:absolute; inset:0; background:radial-gradient(90% 60% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.6) 100%); }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; }
+  #hint { position:fixed; bottom:8px; left:8px; color:#665; font:12px Inter, sans-serif; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1080" height="1920"></canvas>
+  <div id="shade"></div>
+  <div id="vig"></div>
+  <div id="ui"></div>
+  <div id="cap"></div>
+  <div id="fade"></div>
+</div>
+<div id="hint">Click to play/pause (with audio) · ←/→ seek</div>
+<script src="three.min.js"></script>
+<script src="timeline.js"></script>
+<script src="cues.js"></script>
+<script>
+(() => {
+const TL = window.TIMELINE, CU = window.CUES;
+const DURATION = TL.duration, W = 1080, H = 1920;
+const RENDER = new URLSearchParams(location.search).has('render');
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const eo = t => 1 - Math.pow(1 - clamp(t), 3);
+const lerp = (a, b, t) => a + (b - a) * t;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(11);
+const S = v => Math.max(0.0001, v);
+const L = {}; TL.lines.forEach((l, i) => { l.next = TL.lines[i + 1] ? TL.lines[i + 1].start : DURATION; L[l.key] = l; });
+const wordT = (key, re, n = 0) => L[key].words.filter(w => re.test(w[0]))[n][1];
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// ---------- three ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2;
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0c0605, 14, 42);
+const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200); scene.add(camera);
+const hemi = new THREE.HemisphereLight(0x8a6a58, 0x120808, 0.55); scene.add(hemi);
+const keyL = new THREE.DirectionalLight(0xffc89a, 1.6); keyL.position.set(6, 12, 10); scene.add(keyL);
+const rimL = new THREE.DirectionalLight(0xff4a3a, 1.0); rimL.position.set(-8, 5, -10); scene.add(rimL);
+const redL = new THREE.PointLight(0xff2020, 0, 30, 1.4); redL.position.set(0, 4, 4); scene.add(redL);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ color: 0x1c1311, roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const tiles = new THREE.GridHelper(260, 260, 0x3a241c, 0x24160f); tiles.position.y = 0.005; tiles.material.transparent = true; tiles.material.opacity = 0.5; scene.add(tiles);
+
+const std = (c, ei = 0, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, emissive: c, emissiveIntensity: ei, roughness: 0.55, metalness: 0.15 }, extra));
+const GOLD = 0xf2c46d, CRIMSON = 0x9e1b2c, JADE = 0x1d6b63, SKIN = 0xd9b38c;
+
+// ---------- figure parts (shared geometry) ----------
+const gBody = new THREE.CylinderGeometry(0.11, 0.24, 0.62, 6); gBody.translate(0, 0.31, 0);
+const gHead = new THREE.SphereGeometry(0.1, 14, 10); gHead.translate(0, 0.74, 0);
+const gHair = new THREE.ConeGeometry(0.07, 0.14, 8); gHair.translate(0, 0.88, -0.02);
+const gSpear = new THREE.CylinderGeometry(0.012, 0.012, 1.35, 5); gSpear.translate(-0.22, 0.62, 0.04);
+const gTip = new THREE.ConeGeometry(0.035, 0.13, 6); gTip.translate(-0.22, 1.36, 0.04);
+function makeFigure(robe, { scale = 1, spear = true, sword = false, crown = false, glow = 0 } = {}) {
+  const g = new THREE.Group();
+  const bodyM = std(robe, glow);
+  const body = new THREE.Mesh(gBody, bodyM), head = new THREE.Mesh(gHead, std(SKIN, 0.05)), hair = new THREE.Mesh(gHair, std(0x111111));
+  g.add(body, head, hair);
+  if (spear) g.add(new THREE.Mesh(gSpear, std(0x8c7b5a)), new THREE.Mesh(gTip, std(0xcfd3d6, 0.1, { metalness: 0.8 })));
+  if (sword) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.75, 0.05), std(0xd8dde2, 0.15, { metalness: 0.9, roughness: 0.2 })); s.position.set(0.22, 0.45, 0.06); s.rotation.z = 0.15; g.add(s); }
+  if (crown) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.1, 10), std(GOLD, 0.6, { metalness: 0.8 })); c.position.y = 0.86; g.add(c); hair.visible = false; }
+  g.scale.setScalar(scale); g.userData.body = bodyM;
+  scene.add(g); return g;
+}
+
+// ---------- army (instanced) ----------
+const ROWS = 9, COLS = 10, N = ROWS * COLS * 2, SP = 0.42, CX = 2.4;
+const parts = [gBody, gHead, gHair, gSpear, gTip].map((g, i) => {
+  const m = new THREE.InstancedMesh(g, i === 0 ? new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.1 }) : std([0, SKIN, 0x111111, 0x8c7b5a, 0xcfd3d6][i]), N);
+  scene.add(m); return m;
+});
+const soldiers = [];
+for (let c = 0; c < 2; c++) for (let r = 0; r < ROWS; r++) for (let k = 0; k < COLS; k++) {
+  const i = soldiers.length;
+  soldiers.push({ x: (c ? CX : -CX) + (k - (COLS - 1) / 2) * SP, z: (r - (ROWS - 1) / 2) * SP, row: r, c, ph: R() * 6.28, f: 5 + R() * 6, j: R() });
+  parts[0].setColorAt(i, new THREE.Color(c ? JADE : CRIMSON).multiplyScalar(0.85 + R() * 0.3));
+}
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+
+// ---------- named figures ----------
+const capA = makeFigure(GOLD, { glow: 0.35, spear: false }), capB = makeFigure(GOLD, { glow: 0.35, spear: false });
+const newA = makeFigure(GOLD, { glow: 0.35, spear: false }), newB = makeFigure(GOLD, { glow: 0.35, spear: false });
+const CAP_A = V(-CX, 0, 2.35), CAP_B = V(CX, 0, 2.35);
+const sunTzu = makeFigure(0x231a1a, { scale: 1.35, spear: false, sword: true });
+const sash = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 8, 20), std(0xb0141c, 0.4)); sash.rotation.x = Math.PI / 2; sash.position.y = 0.4; sunTzu.add(sash);
+const SUN = V(0, 0, 4.2);
+const king = makeFigure(GOLD, { scale: 1.6, spear: false, crown: true, glow: 0.25 });
+const you = makeFigure(0xe9e2d6, { scale: 1.9, spear: false, glow: 0.12 });
+const comfort = makeFigure(GOLD, { scale: 1.6, spear: false, glow: 0.4 }), excuses = makeFigure(GOLD, { scale: 1.6, spear: false, glow: 0.4 });
+const YOU = V(0, 0, 40), ARMY_YOU = V(0, 0, 36.2);
+const pillar = (pos, color) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 6, 24, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); m.position.copy(pos).setY(3); scene.add(m); return m; };
+const beamA = pillar(CAP_A, GOLD), beamB = pillar(CAP_B, GOLD);
+
+// ---------- drum ----------
+const drum = new THREE.Group(); scene.add(drum);
+{ const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.62, 32), std(0x6e1414, 0.08, { roughness: 0.4 })); body.rotation.x = Math.PI / 2;
+  const headM = new THREE.MeshStandardMaterial({ color: 0xd8c3a0, roughness: 0.8 });
+  const h1 = new THREE.Mesh(new THREE.CircleGeometry(0.53, 32), headM); h1.position.z = 0.311;
+  const h2 = h1.clone(); h2.rotation.y = Math.PI; h2.position.z = -0.311;
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.035, 8, 40), std(GOLD, 0.3, { metalness: 0.8 })); ring1.position.z = 0.3; const ring2 = ring1.clone(); ring2.position.z = -0.3;
+  const leg = (x) => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.06), std(0x2a1712)); l.position.set(x, -0.45, 0); l.rotation.z = x > 0 ? -0.25 : 0.25; return l; };
+  const mark = new THREE.Mesh(new THREE.CircleGeometry(0.18, 24), new THREE.MeshBasicMaterial({ color: 0x9e1b2c })); mark.position.z = 0.313;
+  drum.add(body, h1, h2, ring1, ring2, leg(-0.35), leg(0.35), mark); drum.userData.head = headM; }
+const DRUM_ARMY = V(1.15, 0.95, 4.7), DRUM_YOU = V(1.7, 0.95, 40.6);
+const rings = [0, 1, 2].map(() => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 64), new THREE.MeshBasicMaterial({ color: 0xffb36b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; scene.add(m); return m; });
+const drumLight = new THREE.PointLight(0xffa860, 0, 14, 1.5); scene.add(drumLight);
+
+// ---------- palace ----------
+const palace = new THREE.Group(); palace.position.set(0, 0, -40); scene.add(palace);
+{ const stone = std(0x3a2c27), wood = std(0x3b1a14), red = std(0x8e1a1f, 0.08), roofM = std(0x16100e, 0, { roughness: 0.7 });
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(9, 1, 5.2), stone); plat.position.y = 0.5;
+  const steps = [0, 1, 2].map(i => { const s = new THREE.Mesh(new THREE.BoxGeometry(3.2 - i * 0.3, 0.33, 0.6), stone); s.position.set(0, 0.17 + i * 0.33, 2.9 - i * 0.4); return s; });
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(7.2, 2.4, 3), wood); hall.position.set(0, 2.2, -0.4);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.8), new THREE.MeshBasicMaterial({ color: 0xffa64a })); door.position.set(0, 1.9, 1.11);
+  palace.add(plat, ...steps, hall, door);
+  [-3.3, -2, -0.75, 0.75, 2, 3.3].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 2.5, 16), red); p.position.set(x, 2.25, 1.6); palace.add(p); });
+  const roof = (rt, rb, h, y) => { const r = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 4, 1), roofM); r.rotation.y = Math.PI / 4; r.scale.z = 0.62; r.position.y = y;
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(r.geometry), new THREE.LineBasicMaterial({ color: GOLD, transparent: true, opacity: 0.55 })); r.add(e); palace.add(r); };
+  roof(2.6, 6.6, 0.9, 3.9); const mid = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.8, 2.4), wood); mid.position.y = 4.65; palace.add(mid); roof(0.25, 3.9, 1.2, 5.6);
+  [-2.7, 2.7].forEach(x => { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff8a3a })); l.position.set(x, 3.1, 2.0); palace.add(l);
+    const pl = new THREE.PointLight(0xff8a3a, 6, 8, 1.6); pl.position.copy(l.position); palace.add(pl); }); }
+const KING = V(0, 1.0, -37.6);
+
+// ---------- embers ----------
+function emberField(n, size) {
+  const p = new Float32Array(n * 3), col = new Float32Array(n * 3), d = [];
+  for (let i = 0; i < n; i++) { const c = new THREE.Color().setHSL(0.05 + R() * 0.07, 1, 0.5 + R() * 0.2); col.set([c.r, c.g, c.b], i * 3); d.push({ a: R(), b: R(), c: R(), v: 0.5 + R(), s: R() }); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.userData = { p, d, n }; m.frustumCulled = false; return m;
+}
+const ambient = emberField(260, 0.05); camera.add(ambient);
+const burstA = emberField(500, 0.05); scene.add(burstA);
+const burstB = emberField(500, 0.05); scene.add(burstB);
+function updateAmbient(t) {
+  const { p, d, n } = ambient.userData;
+  for (let i = 0; i < n; i++) { const q = d[i]; const y = ((q.b * 14 + t * 0.35 * q.v) % 14) - 7;
+    p[i * 3] = (q.a - 0.5) * 9 + Math.sin(t * 0.7 + q.s * 9) * 0.25; p[i * 3 + 1] = y; p[i * 3 + 2] = -3 - q.c * 14; }
+  ambient.geometry.attributes.position.needsUpdate = true;
+}
+function updateBurst(pts, origins, t0, t) {
+  const u = t - t0; pts.visible = u > -0.05 && u < 4.5; if (!pts.visible) return;
+  const { p, d, n } = pts.userData;
+  for (let i = 0; i < n; i++) { const q = d[i]; const o = origins[i % origins.length];
+    const life = clamp(u / (1.6 + q.v * 1.6)); const k = eo(life);
+    const r = (0.1 + q.a * 0.35) * (1 + k * 1.6); const ang = q.b * 6.28 + u * (0.6 + q.c);
+    p[i * 3] = o.x + Math.cos(ang) * r; p[i * 3 + 1] = o.y + q.s * 0.9 * (1 - k * 0.3) + k * (1.5 + q.v * 2.2); p[i * 3 + 2] = o.z + Math.sin(ang) * r; }
+  pts.geometry.attributes.position.needsUpdate = true;
+  pts.material.opacity = Math.min(eo(u / 0.15), 1 - ss(2.2, 4.4, u));
+}
+
+// ---------- shots ----------
+const SH = [];
+const shot = (k0, fn) => SH.push({ t0: k0 === 'hook' ? 0 : L[k0].start - 0.35, fn });
+shot('hook', (u, t) => { const a = 0.9 + u * 0.06; const r = lerp(4.6, 3.9, u / 8); return [V(DRUM_ARMY.x + Math.sin(a) * r, 1.5, DRUM_ARMY.z + Math.cos(a) * r), DRUM_ARMY.clone().setY(1.75)]; });
+shot('king', u => [V(0, lerp(3.4, 3.6, u / 10), lerp(-19.5, -22.5, u / 10)), V(0, 2.4, -40)]);
+shot('ranks', u => [V(lerp(-1.5, 0, u / 15), lerp(10.5, 9.4, u / 15), lerp(15, 13.4, u / 15)), V(0, 0, 0.7)]);
+shot('laugh1', u => [V(lerp(-2.6, -1.4, u / 2), 1.25, 6.2), V(lerp(-2.4, -1.2, u / 2), 0.55, 1.6)]);
+shot('blame1', u => [V(lerp(-0.12, 0.12, u / 5), 1.3, lerp(1.1, 1.5, u / 5)), V(0, 0.95, 4.2)]);
+shot('repeat', u => [V(lerp(0.5, -0.5, u / 4), 8.8, 13.0), V(0, 0, 0.7)]);
+shot('laugh2', u => [V(lerp(2.6, 1.4, u / 2), 1.25, 6.2), V(lerp(2.4, 1.2, u / 2), 0.55, 1.6)]);
+shot('blame2', u => [V(lerp(0.12, -0.12, u / 6), 1.2, lerp(1.2, 1.6, u / 6)), V(0, 0.95, 4.2)]);
+shot('execute', u => [V(0, lerp(2.2, 2.6, u / 3.8), lerp(11.0, 12.2, u / 3.8)), V(0, 0.7, 2.3)]);
+shot('king2', u => [V(lerp(1.2, -0.8, u / 9.5), 2.9, lerp(-22, -25.5, u / 9.5)), V(0, 2.3, -40)]);
+shot('silence', u => [V(lerp(7.5, 5.8, u / 11), lerp(7, 5.6, u / 11), lerp(10.5, 9, u / 11)), V(0, 0.3, 0.3)]);
+shot('lesson', u => [V(0, 1.5, lerp(46.5, 45.5, u / 7)), V(0, 1.15, 40)]);
+shot('captains', u => [V(0, 1.7, lerp(48.8, 47.6, u / 11)), V(0, 1.1, 40)]);
+shot('drum', u => { const k = ss(0.6, 5.0, u); return [V(0, lerp(1.8, 8.5, k), lerp(46.0, 52, k)), V(0, lerp(1.1, 0.4, k), lerp(40, 37.5, k))]; });
+shot('end', u => [V(0, lerp(8.5, 10.5, u / 6), lerp(52, 55, u / 6)), V(0, 0.4, 37.4)]);
+SH.forEach((s, i) => s.t1 = SH[i + 1] ? SH[i + 1].t0 : DURATION + 1);
+const curShot = t => SH.find(s => t >= s.t0 && t < s.t1) || SH[SH.length - 1];
+
+// strikes
+const strikeAt = (t) => { let a = 0; for (const [ts, s] of CU.strikes) if (t >= ts) a = Math.max(a, s * Math.exp(-(t - ts) * 5)); return a; };
+
+// ---------- overlays ----------
+const ui = document.getElementById('ui');
+const OV = [];
+function ov(t0, t1, html, style = '', cls = '', anchor = null) { const el = document.createElement('div'); el.className = 'el ' + cls; el.style.cssText = style; el.innerHTML = html; ui.appendChild(el); OV.push({ t0, t1, el, anchor }); return el; }
+const end = k => L[k].next - 0.3;
+ov(1.0, CU.decision - 0.15, '<div class="kick">Sun Tzu · The Art of War</div>', 'top:300px', 'center');
+ov(CU.decision - 0.1, end('hook'), '<div class="kick">Sun Tzu · The Art of War</div><div class="title" style="font-size:96px;margin-top:22px">Discipline<br>is a <span style="color:var(--gold)">decision</span></div>', 'top:300px', 'center');
+ov(L.king.start + 0.3, end('king'), '孫<br>子<br>兵<br>法', 'top:200px;right:80px;line-height:1.08;', 'cjk');
+ov(wordT('king', /^Art/), end('king'), '<div class="kick" style="letter-spacing:.25em">The Art of War</div>', 'top:250px;left:80px;');
+ov(L.test.start + 0.1, end('test'), '<div class="quote">“Can your methods<br>train anyone?”</div>', 'top:250px', 'center');
+ov(L.yes.start + 0.2, end('yes'), '<div class="title" style="font-size:150px;color:var(--gold)">“Yes.”</div>', 'top:300px', 'center');
+ov(L.ranks.start + 0.4, end('ranks'), '<div class="kick">180 women · 2 companies</div>', 'top:250px', 'center');
+ov(wordT('ranks', /^captains/), end('orders'), 'Captain', '', 'lab', V(-CX, 1.35, 2.35));
+ov(wordT('ranks', /^captains/), end('orders'), 'Captain', '', 'lab', V(CX, 1.35, 2.35));
+ov(L.orders.start, wordT('orders', /^Face/) - 0.1, 'Sun Tzu', 'color:#fff', 'lab', V(0, 1.75, 4.2));
+[['commands', 'front', '↑ Front'], ['commands', 'left', '← Left'], ['commands', 'right', 'Right →']].forEach(([, k, txt], i) => {
+  const t0 = CU.commands[k], t1 = i < 2 ? CU.commands[['left', 'right'][i]] - 0.05 : wordT('orders', /^Then/);
+  ov(t0 - 0.05, t1, `<div class="cmd" style="font-size:120px">${txt}</div>`, 'top:270px', 'center'); });
+ov(L.blame1.start + 0.1, end('blame1'), '<div class="quote">“If the commands are not clear, the fault is the <span style="color:var(--gold)">general’s</span>.”</div>', 'top:230px', 'center');
+ov(L.repeat.start + 0.1, end('repeat'), '<div class="kick" style="font-size:40px">Again.</div>', 'top:280px', 'center');
+ov(L.blame2.start + 0.1, end('blame2'), '<div class="quote">“When the commands are clear and still not obeyed, the fault is the <span style="color:var(--red)">officers’</span>.”</div>', 'top:200px', 'center');
+ov(L.king2.start + 2.0, end('king2'), '<div class="quote" style="font-size:54px">“A general in the field cannot accept every order of his sovereign.”<div class="src">Sun Tzu · Records of the Grand Historian</div></div>', 'top:200px', 'center');
+ov(L.silence.start + 0.2, end('perfect'), '<div class="kick">The drum sounds once more</div>', 'top:260px', 'center');
+const drillWords = ['Left', 'Right', 'Kneel', 'Rise'];
+drillWords.forEach((k, i) => ov(CU.perfect[k] - 0.04, i < 3 ? CU.perfect[drillWords[i + 1]] - 0.04 : end('drill'), `<div class="cmd">${k}</div>`, 'top:250px', 'center'));
+ov(L.lesson.start + 0.1, end('lesson'), '<div class="title" style="font-size:110px">The<br><span style="color:var(--gold)">Lesson</span></div>', 'top:320px', 'center');
+[['early', 'Wake up early'], ['work', 'Do the work'], ['phone', 'Phone down']].forEach(([k, txt], i) => ov(CU.you[k] - 0.05, end('you'), `<div class="title" style="font-size:66px;color:${i === 2 ? 'var(--gold)' : '#fff'}">${txt}</div>`, `top:${200 + i * 95}px`, 'center'));
+ov(CU.caps.comfort - 0.05, CU.embers.remove + 0.2, 'Comfort', 'font-size:40px', 'lab', V(-1.05, 1.85, 40.3));
+ov(CU.caps.excuses - 0.05, CU.embers.remove + 0.2, 'Excuses', 'font-size:40px', 'lab', V(1.05, 1.85, 40.3));
+ov(L.end.start - 0.1, DURATION, '<div class="title" style="font-size:100px">Discipline<br>is a <span style="color:var(--gold)">decision</span></div><div class="serif" style="font-size:48px;font-style:italic;margin-top:26px;color:var(--muted)">Make it today.</div>', 'top:230px', 'center');
+ov(wordT('end', /^today/) + 0.4, DURATION, '<div class="pill">FOLLOW</div>', 'top:620px', 'center');
+
+// karaoke captions
+const capEl = document.getElementById('cap'); let capKey = '';
+function chunks(words) { const out = []; let cur = []; for (const w of words) { cur.push(w); if (cur.length >= 3 || /[.,!?]$/.test(w[0])) { out.push(cur); cur = []; } } if (cur.length) out.push(cur); return out; }
+TL.lines.forEach(l => l.chunks = chunks(l.words));
+function updateCaptions(t) {
+  const line = TL.lines.find(l => t >= l.start - 0.05 && t < l.next - 0.05);
+  if (!line || t > line.end + 0.4) { capEl.innerHTML = ''; capKey = ''; return; }
+  const ch = line.chunks.find(c => t < c[c.length - 1][2] + 0.05) || line.chunks[line.chunks.length - 1];
+  const k = line.key + ch[0][1];
+  if (k !== capKey) { capEl.innerHTML = ch.map(w => `<span>${w[0].replace(/[.,?]$/, '')}</span>`).join(''); capKey = k; }
+  ch.forEach((w, i) => { const sp = capEl.children[i]; const on = t >= w[1] - 0.03;
+    sp.className = on && t < w[2] + 0.05 ? 'on' : '';
+    const pop = eo((t - w[1] + 0.03) / 0.14);
+    sp.style.opacity = on ? 1 : 0; sp.style.transform = `scale(${on ? lerp(0.75, 1, pop) : 0.75})`; });
+}
+
+// ---------- per-frame ----------
+const laughAmp = t => Math.max(ss(L.laugh1.start - 0.4, L.laugh1.start, t) * (1 - ss(L.blame1.start - 0.2, L.blame1.start + 0.3, t)),
+                               ss(L.laugh2.start - 0.4, L.laugh2.start, t) * (1 - ss(L.blame2.start - 0.2, L.blame2.start + 0.3, t)));
+function drillState(t) {
+  const P = CU.perfect, tr = (a) => eo((t - a) / 0.2);
+  let yaw = 0; yaw = lerp(yaw, Math.PI / 2, tr(P.Left)); yaw = lerp(yaw, -Math.PI / 2, tr(P.Right)); yaw = lerp(yaw, 0, tr(P.Kneel));
+  let kneel = tr(P.Kneel) * (1 - tr(P.Rise));
+  return { yaw, kneel };
+}
+function poseFigure(g, pos, yaw, opts = {}) {
+  const { s = 1, jit = 0, ph = 0, t = 0, kneel = 0, a = 1 } = opts;
+  g.visible = a > 0.001; if (!g.visible) return;
+  g.position.copy(pos); g.position.y += Math.abs(Math.sin(t * 10 + ph)) * 0.08 * jit;
+  g.rotation.set(Math.sin(t * 7 + ph) * 0.2 * jit, yaw + Math.sin(t * 5 + ph) * 0.9 * jit, Math.sin(t * 9 + ph) * 0.18 * jit);
+  const base = g.userData.base || (g.userData.base = g.scale.x);
+  g.scale.set(base * a * s, base * a * s * (1 - 0.42 * kneel), base * a * s);
+}
+
+function render(t) {
+  // ---- camera
+  const sh = curShot(t); const [cp, ct] = sh.fn(t - sh.t0, t);
+  const kick = strikeAt(t);
+  const boomU = t - CU.booms[0]; const boomShake = boomU > 0 ? Math.exp(-boomU * 2.5) : 0;
+  const shake = kick * 0.05 + boomShake * 0.12;
+  camera.position.copy(cp).add(V(Math.sin(t * 53) * shake, Math.cos(t * 47) * shake, 0));
+  camera.position.x += Math.sin(t * 0.4) * 0.05; camera.position.y += Math.sin(t * 0.33) * 0.04;
+  camera.lookAt(ct);
+  updateAmbient(t);
+
+  // ---- lighting mood
+  const exeA = ss(L.execute.start, CU.booms[0], t) * (1 - ss(L.king2.start - 0.3, L.king2.start + 0.8, t));
+  redL.intensity = 22 * exeA + 45 * boomShake;
+  hemi.intensity = 0.55 * (1 - 0.5 * exeA);
+  document.getElementById('vig').style.opacity = (Math.max(exeA * 0.3, boomShake * 0.55)).toFixed(3);
+
+  // ---- army
+  const inYou = t >= L.drum.start - 0.4;
+  const armyVis = (t >= L.ranks.start - 0.4 && t < L.lesson.start - 0.3) || inYou;
+  const la = laughAmp(t);
+  const dr = t >= L.perfect.start - 1 && t < L.lesson.start ? drillState(t) : { yaw: 0, kneel: 0 };
+  const stillness = ss(wordT('silence', /^drum/), wordT('silence', /^drum/) + 0.3, t);
+  const off = inYou ? ARMY_YOU : V(0, 0, 0);
+  const lineT = CU.line;
+  for (let i = 0; i < N; i++) {
+    const s = soldiers[i];
+    let a = 0, rise = 0, yaw = dr.yaw, kneel = dr.kneel, jit = la * (0.6 + s.j * 0.8);
+    if (armyVis && !inYou) a = eo((t - L.ranks.start - 0.1 - (ROWS - 1 - s.row) * 0.22 - s.j * 0.25) / 0.45);
+    if (inYou) { const t0 = wordT('drum', /^watch/) + (ROWS - 1 - s.row) * 0.2 + s.j * 0.35 + s.c * 0.1; a = eo((t - t0) / 0.5); rise = 1 - a; jit = 0; yaw = 0; kneel = 0; }
+    // before the second drum in "silence", idle sway
+    const idle = (1 - stillness) * 0.06 * (inYou ? 0 : 1);
+    _p.set(s.x + off.x, -rise * 1.0, s.z + off.z);
+    _p.y += Math.abs(Math.sin(t * s.f + s.ph)) * 0.07 * jit;
+    _e.set(Math.sin(t * 7 + s.ph) * 0.18 * jit, yaw + Math.sin(t * 4 + s.ph) * (0.9 * jit + idle), Math.sin(t * 9 + s.ph) * 0.16 * jit);
+    _q.setFromEuler(_e); _s.set(S(a), S(a * (1 - 0.42 * kneel)), S(a));
+    _m.compose(_p, _q, _s);
+    for (const pm of parts) pm.setMatrixAt(i, _m);
+  }
+  for (const pm of parts) { pm.visible = armyVis; pm.instanceMatrix.needsUpdate = true; }
+
+  // ---- captains
+  const capOn = eo((t - wordT('ranks', /^captains/)) / 0.4);
+  const fadeCap = 1 - ss(CU.booms[0] - 0.05, CU.booms[0] + 0.6, t);
+  const capVis = t >= L.ranks.start && t < L.king2.start;
+  [capA, capB].forEach((g, i) => { poseFigure(g, i ? CAP_B : CAP_A, 0, { a: capVis ? capOn * fadeCap : 0, jit: la * 1.5, ph: i * 2, t, s: 1.15 });
+    g.userData.body.emissiveIntensity = 0.35 + 0.4 * Math.sin(t * 3) * 0.5 + exeA * 0.4; });
+  const beamPulse = Math.max(0, 1 - Math.abs(t - wordT('ranks', /^captains/) - 0.3) / 0.8);
+  const newOn = eo((t - wordT('silence', /^chosen/)) / 0.5);
+  [beamA, beamB].forEach(b => b.material.opacity = 0.25 * beamPulse + 0.3 * Math.max(0, 1 - Math.abs(t - wordT('silence', /^chosen/) - 0.3) / 0.9));
+  const newVis = t >= L.silence.start && t < L.lesson.start;
+  [newA, newB].forEach((g, i) => poseFigure(g, i ? CAP_B : CAP_A, dr.yaw, { a: newVis ? newOn : 0, kneel: dr.kneel, s: 1.15, t }));
+  updateBurst(burstA, [CAP_A.clone().setY(0.2), CAP_B.clone().setY(0.2)], CU.embers.execute, t);
+
+  // ---- Sun Tzu + drum (courtyard)
+  const yard = t < L.lesson.start - 0.3 && !(t >= L.king.start - 0.4 && t < L.ranks.start - 0.4) && !(t >= L.king2.start - 0.4 && t < L.silence.start - 0.4);
+  poseFigure(sunTzu, SUN, Math.PI, { a: yard && t >= L.ranks.start - 0.4 ? 1 : 0, t });
+  const drumPos = inYou ? DRUM_YOU : DRUM_ARMY;
+  drum.visible = (yard || inYou);
+  drum.position.copy(drumPos); drum.rotation.set(0, inYou ? -0.5 : 0.35, 0);
+  drum.scale.setScalar(1 + kick * 0.07);
+  drum.userData.head.emissive = new THREE.Color(0xffa860); drum.userData.head.emissiveIntensity = kick * 0.7;
+  drumLight.position.copy(drumPos).add(V(0, 0.5, 0.8)); drumLight.intensity = 30 * kick + (t < L.king.start ? 6 : 0);
+  // shock rings for the last 3 strikes
+  const recent = CU.strikes.filter(([ts]) => t >= ts && t - ts < 1.4).slice(-3);
+  rings.forEach((r, i) => { const st = recent[i]; r.visible = !!st && drum.visible; if (!r.visible) return;
+    const u = t - st[0]; const rad = 0.8 + u * 9 * st[1]; r.scale.setScalar(rad); r.position.set(drumPos.x, 0.03, drumPos.z);
+    r.material.opacity = 0.75 * st[1] * (1 - u / 1.4); });
+
+  // ---- palace + king
+  const atPalace = (t >= L.king.start - 0.4 && t < L.ranks.start - 0.4) || (t >= L.king2.start - 0.4 && t < L.silence.start - 0.4);
+  palace.visible = atPalace;
+  poseFigure(king, KING, 0, { a: atPalace ? 1 : 0, t, jit: t > L.king2.start && t < wordT('king2', /^Sun/) ? 0.12 : 0, ph: 1 });
+
+  // ---- you + inner captains
+  const youVis = t >= L.lesson.start - 0.4;
+  poseFigure(you, YOU, 0, { a: youVis ? eo((t - L.lesson.start + 0.2) / 0.5) : 0, t });
+  you.userData.body.emissiveIntensity = 0.12 + 0.35 * ss(L.drum.start, L.end.start, t);
+  const cOn = c => eo((t - CU.caps[c] + 0.05) / 0.35);
+  const goneU = 1 - ss(CU.embers.remove - 0.05, CU.embers.remove + 0.5, t);
+  const laughC = t < CU.embers.remove ? 1 : 0;
+  poseFigure(comfort, V(-1.05, 0, 40.3), 0.25, { a: youVis ? cOn('comfort') * goneU : 0, jit: laughC * 1.1, ph: 0.5, t });
+  poseFigure(excuses, V(1.05, 0, 40.3), -0.25, { a: youVis ? cOn('excuses') * goneU : 0, jit: laughC * 1.1, ph: 2.2, t });
+  updateBurst(burstB, [V(-1.05, 0.3, 40.3), V(1.05, 0.3, 40.3)], CU.embers.remove, t);
+
+  renderer.render(scene, camera);
+
+  // ---- overlays
+  const _v = new THREE.Vector3();
+  for (const o of OV) {
+    const a = Math.min(eo((t - o.t0) / 0.25), 1 - ss(o.t1 - 0.2, o.t1, t));
+    o.el.style.opacity = Math.max(0, a).toFixed(3);
+    let tr = `translateY(${((1 - Math.max(0, a)) * 22).toFixed(1)}px)`;
+    if (o.anchor) { _v.copy(o.anchor).project(camera); o.el.style.left = ((_v.x * 0.5 + 0.5) * W).toFixed(1) + 'px'; o.el.style.top = ((-_v.y * 0.5 + 0.5) * H).toFixed(1) + 'px'; tr = 'translate(-50%,-50%) ' + tr; if (_v.z > 1) o.el.style.opacity = 0; }
+    o.el.style.transform = tr;
+  }
+  updateCaptions(t);
+  let f = Math.max(1 - ss(0, 0.5, t), ss(DURATION - 1.2, DURATION, t));
+  for (const s of SH.slice(1)) f = Math.max(f, 1 - clamp(Math.abs(t - s.t0) / 0.22));
+  document.getElementById('fade').style.opacity = f.toFixed(3);
+}
+
+window.DURATION = DURATION;
+window.setTime = t => { render(t); return true; };
+if (RENDER) { document.getElementById('hint').remove(); window.ready = true; return; }
+
+const stage = document.getElementById('stage');
+const fit = () => { const s = Math.min(innerWidth / W, innerHeight / H); stage.style.transform = `scale(${s})`; };
+addEventListener('resize', fit); fit();
+const audio = new Audio('preview-audio.m4a');
+let playing = false, t = 0, last = performance.now();
+addEventListener('click', () => { playing = !playing; if (playing) { audio.currentTime = t; audio.play().catch(() => {}); } else audio.pause(); });
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 3); if (e.key === 'ArrowLeft') t = Math.max(0, t - 3); audio.currentTime = t; });
+(function loop(now) { const dt = (now - last) / 1000; last = now; if (playing) { t = audio.paused ? t + dt : audio.currentTime; if (t >= DURATION) { t = 0; playing = false; audio.pause(); } } render(t); requestAnimationFrame(loop); })(last);
+})();
+</script>
+</body>
+</html>
