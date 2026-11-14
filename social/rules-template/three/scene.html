@@ -1,0 +1,358 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>body{margin:0;background:#000}</style></head>
+<body>
+<script type="module">
+import * as THREE from './node_modules/three/build/three.module.js';
+
+const TL = await (await fetch('./timeline.json')).json();
+const W = 1080, H = 1920;
+for (const [fam, file, style] of [['Caveat', 'Caveat.ttf', 'normal'], ['PlayfairI', 'PlayfairItalic.ttf', 'italic'], ['Playfair', 'Playfair.ttf', 'normal']]) {
+  const f = new FontFace(fam, `url(./${file})`, { style, weight: '400 900' }); await f.load(); document.fonts.add(f);
+}
+
+const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+// ---------- renderer ----------
+const R = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+R.setSize(W, H); R.setPixelRatio(1);
+R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.05;
+R.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(R.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x120c08);
+scene.fog = new THREE.Fog(0x120c08, 3.5, 7.5);
+const cam = new THREE.PerspectiveCamera(50, W / H, 0.05, 30);
+
+// ---------- lights ----------
+scene.add(new THREE.HemisphereLight(0xffe2c0, 0x2a1a10, 0.55));
+const lamp = new THREE.SpotLight(0xffd29a, 38, 9, 0.62, 0.65, 1.6);
+lamp.position.set(-1.25, 2.7, -1.0); lamp.target.position.set(0.45, 0, 0.05);
+lamp.castShadow = true; lamp.shadow.mapSize.set(2048, 2048); lamp.shadow.bias = -0.0004; lamp.shadow.radius = 4;
+scene.add(lamp, lamp.target);
+const fill = new THREE.DirectionalLight(0x9fb4ff, 0.25); fill.position.set(2, 2, 3); scene.add(fill);
+
+// ---------- canvas textures ----------
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.userData.canvas = c; return t;
+}
+// wood desk
+const woodTex = canvasTex(1024, 1024, (g, w, h) => {
+  g.fillStyle = '#5a3820'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 260; i++) {
+    const y = rnd(i) * h, a = 0.05 + rnd(i + 3) * 0.12;
+    g.strokeStyle = rnd(i + 7) > 0.5 ? `rgba(30,15,5,${a})` : `rgba(140,90,50,${a})`;
+    g.lineWidth = 1 + rnd(i + 9) * 4; g.beginPath();
+    for (let x = 0; x <= w; x += 16) g.lineTo(x, y + Math.sin(x * 0.006 + i) * 10 + Math.sin(x * 0.03 + i * 2) * 2);
+    g.stroke();
+  }
+});
+woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping; woodTex.repeat.set(3, 3);
+const desk = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.62, metalness: 0.05 }));
+desk.rotation.x = -Math.PI / 2; desk.receiveShadow = true; scene.add(desk);
+
+// paper base (noise speckle) reused for pages
+const PW = 1024, PH = 1434;
+const paperBase = document.createElement('canvas'); paperBase.width = PW; paperBase.height = PH;
+{
+  const g = paperBase.getContext('2d');
+  const gr = g.createRadialGradient(PW / 2, PH / 2, 200, PW / 2, PH / 2, 900);
+  gr.addColorStop(0, '#f7f0e1'); gr.addColorStop(1, '#eadcc2'); g.fillStyle = gr; g.fillRect(0, 0, PW, PH);
+  for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(120,90,50,${rnd(i) * 0.06})`; g.fillRect(rnd(i + 1) * PW, rnd(i + 2) * PH, 1.5, 1.5); }
+  g.strokeStyle = 'rgba(70,110,170,0.22)'; g.lineWidth = 2;
+  for (let y = 290; y < PH - 60; y += 68) { g.beginPath(); g.moveTo(40, y + 8); g.lineTo(PW - 40, y + 8); g.stroke(); }
+  g.strokeStyle = 'rgba(200,70,70,0.35)'; g.beginPath(); g.moveTo(120, 30); g.lineTo(120, PH - 30); g.stroke();
+}
+const INK = '#1f2547', RED = '#a8322e';
+const FONT = '56px Caveat';
+const X0 = 145, MAXW = PW - X0 - 70, LH = 68, Y_FIRST = 290;
+
+// layout every rule into lines (once)
+const meas = document.createElement('canvas').getContext('2d'); meas.font = FONT;
+TL.pages.forEach(p => {
+  let y = Y_FIRST + LH; // leave one ruled line after the title
+  p.rules.forEach(r => {
+    const words = r.text.split(' '); const lines = []; let cur = '';
+    for (const w of words) { const tst = cur ? cur + ' ' + w : w; if (meas.measureText(tst).width > MAXW && cur) { lines.push(cur); cur = w; } else cur = tst; }
+    lines.push(cur);
+    r.lines = lines.map((s, i) => ({ s, y: y + i * LH, w: meas.measureText(s).width }));
+    r.chars = lines.reduce((a, s) => a + s.length, 0);
+    y += lines.length * LH + LH * 0.55;
+  });
+});
+
+// schedule: per rule, writing split across lines with short pen-lift travels between lines
+function writeState(r, t) {
+  const [a, b] = r.write, n = r.lines.length, travel = 0.16;
+  const avail = b - a - travel * (n - 1);
+  let cur = a;
+  for (let i = 0; i < n; i++) {
+    const L = r.lines[i], d = avail * L.s.length / r.chars;
+    if (t < cur + d) {
+      const k = clamp((t - cur) / d);
+      return { line: i, chars: Math.floor(L.s.length * k), k, lift: 0, travel: null };
+    }
+    cur += d;
+    if (i < n - 1 && t < cur + travel) return { line: i, chars: L.s.length, k: 1, lift: 1, travel: [i, (t - cur) / travel] };
+    cur += travel;
+  }
+  return { line: n, chars: 0, k: 1, lift: 0, done: true };
+}
+function underlineState(r, t) {
+  const [a, b] = r.underline; const tot = r.lines.reduce((s, l) => s + l.w, 0);
+  return clamp((t - a) / (b - a)) * tot;
+}
+function wobble(x, seed) { return Math.sin(x * 0.045 + seed) * 1.6 + Math.sin(x * 0.13 + seed * 2) * 0.8; }
+
+function drawPage(g, p, t, mirrorGhost = false) {
+  g.drawImage(paperBase, 0, 0);
+  g.fillStyle = RED; g.font = 'italic 600 40px PlayfairI'; g.textAlign = 'center';
+  g.fillText('Rules Nobody Tells You', PW / 2, 110);
+  g.textAlign = 'left';
+  const idx = TL.pages.indexOf(p);
+  g.fillStyle = INK; g.font = '700 66px Caveat';
+  g.fillText(['I.', 'II.', 'III.'][idx] + '  ' + p.title, X0 - 60, Y_FIRST - 70 + LH);
+  g.font = FONT;
+  p.rules.forEach(r => {
+    if (t < r.write[0]) return;
+    const st = writeState(r, t);
+    g.fillStyle = INK;
+    // rule number in red ink
+    g.save(); g.fillStyle = RED; g.font = '700 50px Caveat'; g.fillText(r.n + '.', 66, r.lines[0].y); g.restore();
+    r.lines.forEach((L, i) => {
+      let txt = '';
+      if (st.done || i < st.line) txt = L.s; else if (i === st.line) txt = L.s.slice(0, st.chars);
+      if (txt) { g.save(); g.translate(X0, L.y); g.rotate(Math.sin(r.n * 3 + i) * 0.004); g.fillText(txt, 0, 0); g.restore(); }
+    });
+    // underline
+    let rem = underlineState(r, t);
+    if (rem > 0) {
+      g.strokeStyle = INK; g.lineWidth = 3.4; g.lineCap = 'round';
+      for (const L of r.lines) {
+        if (rem <= 0) break;
+        const len = Math.min(L.w, rem); rem -= len;
+        g.beginPath();
+        for (let x = 0; x <= len; x += 6) g.lineTo(X0 + x, L.y + 14 + wobble(x, r.n + L.y));
+        g.stroke();
+      }
+    }
+  });
+}
+// pen tip target on page (canvas px) + lift amount
+function penTarget(t) {
+  for (const p of TL.pages) for (let ri = 0; ri < p.rules.length; ri++) {
+    const r = p.rules[ri];
+    if (t >= r.write[0] - 0.6 && t < r.write[0]) { // approach start of the rule
+      return { x: X0 - 8, y: r.lines[0].y - 8, lift: 1 - ss(r.write[0] - 0.6, r.write[0], t), page: p };
+    }
+    if (t >= r.write[0] && t < r.write[1]) {
+      const st = writeState(r, t);
+      if (st.travel) {
+        const [i, k] = st.travel, a = r.lines[i], b = r.lines[i + 1];
+        return { x: lerp(X0 + a.w, X0, ss(0, 1, k)), y: lerp(a.y, b.y, ss(0, 1, k)) - 8, lift: Math.sin(k * Math.PI), page: p };
+      }
+      if (st.done) { const L = r.lines[r.lines.length - 1]; return { x: X0 + L.w, y: L.y - 8, lift: 0.3, page: p }; }
+      meas.font = FONT;
+      const L = r.lines[st.line]; const w = meas.measureText(L.s.slice(0, st.chars)).width;
+      const scrib = Math.sin(t * 38) * 6; // little up/down writing motion
+      return { x: X0 + w, y: L.y - 12 + scrib, lift: Math.abs(Math.sin(t * 9)) * 0.08, page: p };
+    }
+    if (t >= r.write[1] && t < r.underline[0]) { // travel back to start for underline
+      const k = ss(r.write[1], r.underline[0], t); const L = r.lines[r.lines.length - 1];
+      return { x: lerp(X0 + L.w, X0, k), y: lerp(L.y - 8, r.lines[0].y + 14, k), lift: Math.sin(k * Math.PI), page: p };
+    }
+    if (t >= r.underline[0] && t < r.underline[1] + 0.05) {
+      let rem = underlineState(r, t);
+      for (const L of r.lines) { if (rem <= L.w) return { x: X0 + rem, y: L.y + 14 + wobble(rem, r.n + L.y), lift: 0, page: p }; rem -= L.w; }
+      const L = r.lines[r.lines.length - 1]; return { x: X0 + L.w, y: L.y + 14, lift: 0, page: p };
+    }
+    const nxt = p.rules[ri + 1];
+    if (nxt && t >= r.underline[1] && t < nxt.write[0] - 0.6) { const L = r.lines[r.lines.length - 1]; return { x: X0 + L.w + 20, y: L.y + 10, lift: 0.6, page: p }; }
+  }
+  return null;
+}
+
+// ---------- book ----------
+const LEATHER = 0x2d4636;
+const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.55, metalness: 0.05 });
+const coverTex = canvasTex(1024, 1434, (g, w, h) => {
+  g.fillStyle = '#2d4636'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 12000; i++) { g.fillStyle = `rgba(0,0,0,${rnd(i) * 0.15})`; g.fillRect(rnd(i + 1) * w, rnd(i + 2) * h, 2, 2); }
+  g.strokeStyle = '#c9a24a'; g.lineWidth = 6; g.strokeRect(60, 60, w - 120, h - 120); g.lineWidth = 2; g.strokeRect(80, 80, w - 160, h - 160);
+  g.fillStyle = '#d8b25a'; g.textAlign = 'center'; g.font = '700 118px Playfair';
+  ['RULES', 'NOBODY', 'TELLS YOU'].forEach((s, i) => g.fillText(s, w / 2, 560 + i * 150));
+  g.font = 'italic 52px PlayfairI'; g.fillText('a quiet guide', w / 2, 1040);
+  g.font = '600 40px Playfair'; g.fillText('VOL. I', w / 2, 1240);
+});
+const endpaper = new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.9 });
+const BW = 1.06, BD = 1.48, BT = 0.028;
+// right board + page stack
+const rightBoard = new THREE.Mesh(new THREE.BoxGeometry(BW, BT, BD), leather); rightBoard.position.set(BW / 2, BT / 2, 0);
+const stackMat = new THREE.MeshStandardMaterial({ color: 0xeee2c8, roughness: 0.95 });
+const rightStack = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 1.4), stackMat); rightStack.position.set(0.5, BT + 0.03, 0);
+const leftBoard = new THREE.Mesh(new THREE.BoxGeometry(BW, BT, BD), leather); leftBoard.position.set(-BW / 2, BT / 2, 0);
+const leftStack = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.03, 1.4), stackMat); leftStack.position.set(-0.5, BT + 0.015, 0);
+[rightBoard, rightStack, leftBoard, leftStack].forEach(m => { m.castShadow = m.receiveShadow = true; scene.add(m); });
+const PAGE_Y = BT + 0.0605;
+
+// page canvases
+const pageTex = TL.pages.map(() => canvasTex(PW, PH, () => {}));
+const blankTex = canvasTex(PW, PH, g => g.drawImage(paperBase, 0, 0));
+const rightPage = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.4), new THREE.MeshStandardMaterial({ map: pageTex[0], roughness: 0.92 }));
+rightPage.rotation.x = -Math.PI / 2; rightPage.position.set(0.5, PAGE_Y, 0); rightPage.receiveShadow = true; scene.add(rightPage);
+const leftTex = canvasTex(PW, PH, () => {});
+const leftPage = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.4), new THREE.MeshStandardMaterial({ map: leftTex, roughness: 0.92 }));
+leftPage.rotation.x = -Math.PI / 2; leftPage.position.set(-0.5, BT + 0.0305, 0); leftPage.receiveShadow = true; scene.add(leftPage);
+
+// flipping page (curl): custom geometry along u (spine -> edge)
+const SEG = 60;
+const flipGeo = new THREE.PlaneGeometry(1.0, 1.4, SEG, 1); flipGeo.rotateX(-Math.PI / 2); flipGeo.translate(0.5, 0, 0);
+const flipBase = flipGeo.attributes.position.array.slice();
+const flipFront = new THREE.Mesh(flipGeo, new THREE.MeshStandardMaterial({ map: pageTex[0], roughness: 0.92, side: THREE.FrontSide }));
+const flipBack = new THREE.Mesh(flipGeo, new THREE.MeshStandardMaterial({ map: leftTex, roughness: 0.92, side: THREE.BackSide }));
+// back side texture must be mirrored in u
+flipBack.material.map = canvasTex(PW, PH, () => {}); flipBack.material.map.wrapS = THREE.RepeatWrapping; flipBack.material.map.repeat.x = -1;
+[flipFront, flipBack].forEach(m => { m.castShadow = true; m.receiveShadow = true; scene.add(m); m.visible = false; });
+function bendPage(f) {
+  const pos = flipGeo.attributes.position; const A = Math.PI * ss(0, 1, f), curl = 1.25 * Math.sin(Math.PI * f);
+  // walk along u accumulating the curved arc
+  const xs = [0], ys = [0];
+  for (let i = 1; i <= SEG; i++) {
+    const u = (i - 0.5) / SEG; const th = Math.min(Math.PI, A + curl * u * (1 - f * 0.5));
+    xs.push(xs[i - 1] + Math.cos(th) / SEG); ys.push(ys[i - 1] + Math.sin(th) / SEG);
+  }
+  for (let v = 0; v < pos.count; v++) {
+    const ox = flipBase[v * 3], oz = flipBase[v * 3 + 2];
+    const i = Math.round(ox * SEG);
+    pos.setXYZ(v, xs[i], PAGE_Y + 0.002 + ys[i] * 0.98 - (f > 0.9 ? (f - 0.9) * 0.3 : 0), oz);
+  }
+  pos.needsUpdate = true; flipGeo.computeVertexNormals();
+}
+
+// cover (opens around spine)
+const coverPivot = new THREE.Group(); scene.add(coverPivot);
+const cover = new THREE.Mesh(new THREE.BoxGeometry(BW, BT, BD), [leather, leather, new THREE.MeshStandardMaterial({ map: coverTex, roughness: 0.5, metalness: 0.1 }), endpaper, leather, leather]);
+cover.position.set(BW / 2, 0, 0); cover.castShadow = true; coverPivot.add(cover);
+
+// ---------- fountain pen ----------
+const pen = new THREE.Group(); scene.add(pen);
+const black = new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.18, metalness: 0.35 });
+const gold = new THREE.MeshStandardMaterial({ color: 0xd4a94e, roughness: 0.28, metalness: 1.0 });
+const addP = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = true; pen.add(m); return m; };
+addP(new THREE.ConeGeometry(0.011, 0.05, 24), gold, 0.025).rotation.x = Math.PI;               // nib
+addP(new THREE.CylinderGeometry(0.0155, 0.012, 0.075, 32), black, 0.085);                       // grip
+addP(new THREE.CylinderGeometry(0.0195, 0.0195, 0.012, 32), gold, 0.128);                       // band
+addP(new THREE.CylinderGeometry(0.021, 0.0175, 0.27, 32), black, 0.268);                        // barrel
+addP(new THREE.CylinderGeometry(0.0215, 0.0215, 0.01, 32), gold, 0.405);                        // band
+addP(new THREE.SphereGeometry(0.021, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), black, 0.41);     // end cap
+const clip = addP(new THREE.BoxGeometry(0.006, 0.12, 0.006), gold, 0.33); clip.position.z = 0.024;
+const PEN_DIR = new THREE.Vector3(0.78, 0.5, 0.36).normalize();
+pen.scale.setScalar(1.25);
+const qBase = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), PEN_DIR);
+const pxToWorld = (x, y) => new THREE.Vector3(x / PW * 1.0, PAGE_Y, -0.7 + y / PH * 1.4);
+const REST = new THREE.Vector3(1.22, 0.25, 0.35);
+
+// ---------- dust motes ----------
+const dustTex = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,230,190,1)'); r.addColorStop(1, 'rgba(255,230,190,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
+const DN = 260, dpos = new Float32Array(DN * 3);
+const dust = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ size: 0.012, map: dustTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 }));
+dust.geometry.setAttribute('position', new THREE.BufferAttribute(dpos, 3)); scene.add(dust);
+
+// ---------- timeline helpers ----------
+const turns = TL.pages.map(p => p.turn).filter(Boolean);
+function pageIndexAt(t) { let i = 0; turns.forEach((tr, k) => { if (t >= tr[1]) i = k + 1; }); return i; }
+function activeTurn(t) { for (let k = 0; k < turns.length; k++) if (t >= turns[k][0] && t < turns[k][1]) return [k, (t - turns[k][0]) / (turns[k][1] - turns[k][0])]; return null; }
+
+// camera keyframes as a pure function of time, then temporally smoothed
+function camRaw(t) {
+  const view = { p: new THREE.Vector3(0.5, 1.95, 0.62), l: new THREE.Vector3(0.5, 0, 0.05) };
+  if (t < 4.6) {
+    const k = ss(0.0, 4.4, t);
+    return { p: new THREE.Vector3(lerp(0.53, 0.5, k), lerp(2.75, 1.95, k), lerp(1.3, 0.62, k)), l: new THREE.Vector3(lerp(0.53, 0.5, k), 0, lerp(-0.02, 0.05, k)) };
+  }
+  if (t >= TL.outro) {
+    const k = ss(TL.outro, TL.outro + 2.5, t);
+    return { p: new THREE.Vector3(lerp(0.5, 0.2, k), lerp(1.95, 2.8, k), lerp(0.62, 0.55, k)), l: new THREE.Vector3(lerp(0.5, 0.2, k), 0, lerp(0.05, -0.62, k)) };
+  }
+  const at = activeTurn(t);
+  if (at) { const k = Math.sin(at[1] * Math.PI); return { p: new THREE.Vector3(lerp(0.5, 0.15, k), lerp(1.95, 2.45, k), lerp(0.62, 0.95, k)), l: new THREE.Vector3(lerp(0.5, 0.1, k), 0, 0.05) }; }
+  const pt = penTarget(t);
+  if (pt) { const w = pxToWorld(pt.x, pt.y); view.l.z = lerp(0.05, w.z, 0.45); view.p.z = view.l.z + 0.6;  view.p.y = 1.74; }
+  return view;
+}
+function camAt(t) {
+  const p = new THREE.Vector3(), l = new THREE.Vector3(); let wsum = 0;
+  for (let i = 0; i < 12; i++) { const tt = t - i * 0.07, w = 1 - i / 12; const c = camRaw(Math.max(0, tt)); p.addScaledVector(c.p, w); l.addScaledVector(c.l, w); wsum += w; }
+  p.multiplyScalar(1 / wsum); l.multiplyScalar(1 / wsum);
+  p.x += Math.sin(t * 0.35) * 0.012; p.y += Math.sin(t * 0.27) * 0.01;
+  return { p, l };
+}
+function penAt(t) {
+  const pt = penTarget(t);
+  if (!pt) return { pos: REST.clone(), lift: 1, rest: 1 };
+  const w = pxToWorld(pt.x, pt.y); w.y += 0.004 + pt.lift * 0.05; return { pos: w, lift: pt.lift, rest: 0 };
+}
+
+// ---------- per-frame update ----------
+let lastPageDraw = {};
+window.renderFrame = (t) => {
+  // cover
+  const ck = ss(TL.cover[0], TL.cover[1], t);
+  coverPivot.rotation.z = Math.PI * ck; coverPivot.position.y = lerp(BT + 0.06 + BT / 2 + 0.002, BT / 2, ss(0.5, 1, ck));
+  cover.visible = ck < 0.999; leftBoard.visible = ck >= 0.999;
+  leftStack.visible = leftPage.visible = ck > 0.97;
+  // pages
+  const pi = pageIndexAt(t), at = activeTurn(t);
+  const drawTo = (tex, p, tt) => { drawPage(tex.userData.canvas.getContext('2d'), p, tt); tex.needsUpdate = true; };
+  drawTo(pageTex[pi], TL.pages[pi], t);
+  // left page shows faint mirrored ghost of the previous page
+  const lg = leftTex.userData.canvas.getContext('2d'); lg.drawImage(paperBase, 0, 0);
+  const ghostIdx = at ? at[0] - 1 : pi - 1;
+  if (ghostIdx >= 0) { lg.save(); lg.globalAlpha = 0.06; lg.translate(PW, 0); lg.scale(-1, 1); lg.drawImage(pageTex[ghostIdx].userData.canvas, 0, 0); lg.restore(); }
+  leftTex.needsUpdate = true;
+  if (at) {
+    const [k, f] = at;
+    drawTo(pageTex[k + 1], TL.pages[k + 1], t);
+    rightPage.material.map = pageTex[k + 1];
+    flipFront.material.map = pageTex[k];
+    const bg = flipBack.material.map.userData.canvas.getContext('2d'); bg.drawImage(paperBase, 0, 0);
+    bg.save(); bg.globalAlpha = 0.06; bg.translate(PW, 0); bg.scale(-1, 1); bg.drawImage(pageTex[k].userData.canvas, 0, 0); bg.restore();
+    flipBack.material.map.needsUpdate = true;
+    flipFront.visible = flipBack.visible = true; bendPage(f);
+  } else { rightPage.material.map = pageTex[pi]; flipFront.visible = flipBack.visible = false; }
+  rightPage.material.needsUpdate = true;
+
+  // pen: smooth by averaging recent targets
+  const acc = new THREE.Vector3(); let ws = 0, lift = 0;
+  for (let i = 0; i < 5; i++) { const s = penAt(Math.max(0, t - i * 0.025)); const w = 1 - i / 5; acc.addScaledVector(s.pos, w); lift += s.lift * w; ws += w; }
+  acc.multiplyScalar(1 / ws); lift /= ws;
+  const show = ss(4.2, 5.0, t) * (1 - ss(TL.outro + 0.2, TL.outro + 1.2, t));
+  pen.position.copy(acc).lerp(REST, 1 - show);
+  const wob = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(t * 7) * 0.03 * (1 - lift), 0, Math.sin(t * 5.3) * 0.04));
+  pen.quaternion.copy(qBase).multiply(wob);
+  pen.visible = t > 3.9;
+  // after the outro the pen lays down on the desk
+  if (t > TL.outro + 0.2) {
+    const k = ss(TL.outro + 0.2, TL.outro + 1.4, t);
+    pen.position.lerp(new THREE.Vector3(1.25, 0.022, 0.25), k);
+    pen.quaternion.slerp(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.5, -Math.PI / 2)), k);
+  }
+  // dust
+  for (let i = 0; i < DN; i++) {
+    const sp = 0.02 + rnd(i) * 0.04;
+    dpos[i * 3] = -0.6 + rnd(i + 1) * 2.0 + Math.sin(t * sp * 6 + i) * 0.05;
+    dpos[i * 3 + 1] = 0.15 + ((rnd(i + 2) * 1.6 + t * sp) % 1.6);
+    dpos[i * 3 + 2] = -0.8 + rnd(i + 3) * 1.6 + Math.cos(t * sp * 5 + i) * 0.05;
+  }
+  dust.geometry.attributes.position.needsUpdate = true;
+
+  const c = camAt(t); cam.position.copy(c.p); cam.lookAt(c.l);
+  R.render(scene, cam);
+  return R.domElement.toDataURL('image/jpeg', 0.95);
+};
+window.ready = true;
+</script></body></html>

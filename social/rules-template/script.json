@@ -1,0 +1,19 @@
+{
+ "voice": "bm_george", "speed": 0.92,
+ "intro": "Rules nobody tells you. Save this, before you need it.",
+ "pages": [
+  {"title": "At the table", "rules": [
+    "Arrive five minutes early, and leave before the night gets old.",
+    "Never check your phone while someone is telling you something that matters.",
+    "Learn the waiter's name. People notice how you treat those who can't help you."]},
+  {"title": "With people", "rules": [
+    "Return what you borrow in better shape than you got it.",
+    "Don't explain yourself to someone who has already decided.",
+    "Compliment people on their choices, not their looks."]},
+  {"title": "Quietly", "rules": [
+    "Keep your plans to yourself until they're finished.",
+    "Never complain about your job to someone who doesn't have one.",
+    "If you're not sure whether to say it, don't."]}
+ ],
+ "outro": "Which one did you learn the hard way? Tell me the number."
+}
