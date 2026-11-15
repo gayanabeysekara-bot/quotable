@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.title{left:140px;top:90px}
+.tree{left:140px;top:300px;width:560px;height:560px;padding:44px;font-size:32px;line-height:2.0}
+.tree .row{white-space:pre}
+.tree .f{color:var(--ink)} .tree .dim{color:#5c6370}
+.code{left:760px;top:300px;width:1020px;height:560px;padding:40px 48px;font-size:28px;line-height:1.6;white-space:pre-wrap}
+.code .k{color:var(--blue)} .code .c{color:#5c6370}
+.tab{position:absolute;top:-22px;left:40px;background:var(--accent);color:#1a0f0a;font-weight:700;font-size:22px;padding:6px 16px;border-radius:10px}
+.hl{position:absolute;border-radius:14px;border:3px solid var(--accent);pointer-events:none}
+.note{font-size:26px;font-weight:600;padding:10px 18px;border-radius:12px;background:var(--accent);color:#1a0f0a;white-space:nowrap}
+</style></head><body><div class="stage" id="root">
+<div class="abs title" id="title"><div class="kicker">What is a Skill?</div><div class="h2" style="margin-top:14px">A folder that teaches Claude <span class="acc">a task</span></div></div>
+<div class="abs panel tree mono" id="tree">
+  <div class="row" id="r0"><span class="acc">▾</span> weekly-report/</div>
+  <div class="row" id="r1"><span class="dim">├─</span> <span class="f acc">SKILL.md</span></div>
+  <div class="row" id="r2"><span class="dim">├─</span> <span class="f">template.md</span></div>
+  <div class="row" id="r3"><span class="dim">└─</span> <span class="f">scripts/</span></div>
+  <div class="row" id="r4"><span class="dim">   └─</span> <span class="f">fetch_tickets.py</span></div>
+</div>
+<div class="abs panel code mono" id="code"><div class="tab">SKILL.md</div><div id="src"></div></div>
+<div class="abs hl" id="hl1" style="left:776px;top:338px;width:990px;height:226px"></div>
+<div class="abs hl" id="hl2" style="left:776px;top:572px;width:990px;height:140px"></div>
+<div class="abs hl" id="hl3" style="left:150px;top:470px;width:540px;height:300px"></div>
+<div class="abs note" id="n1" style="left:1270px;top:262px">When to use it</div>
+<div class="abs note" id="n2" style="left:1380px;top:734px">How to do it</div>
+<div class="abs note" id="n3" style="left:290px;top:880px">Templates &amp; scripts it can use</div>
+</div>
+<script type="module">
+import {P,show,clamp,edges,fontsReady} from './lib.js';
+const D=12,$=id=>document.getElementById(id);
+const lines=[
+ ['c','---'],['','<span class="k">name:</span> weekly-report'],['','<span class="k">description:</span> Build the weekly status'],['','  report. Use when asked for the weekly report.'],['c','---'],
+ ['','1. Run scripts/fetch_tickets.py'],['','2. Group by priority, name an owner'],['','3. Fill template.md, under 200 words']];
+const src=$('src');
+lines.forEach(([c,h])=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h||'&nbsp;';src.appendChild(d)});
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,.4);
+  show($('title'),t,.1,.6);
+  show($('tree'),t,.5,.6,{x:-40,y:0});
+  for(let i=0;i<5;i++) show($('r'+i),t,.8+i*.22,.35,{x:-20,y:0});
+  show($('code'),t,2.0,.6,{x:40,y:0});
+  [...src.children].forEach((d,i)=>show(d,t,2.4+i*.28,.3,{y:8}));
+  const marks=[[5.4,'hl1','n1'],[7.0,'hl2','n2'],[8.6,'hl3','n3']];
+  marks.forEach(([a,h,n])=>{show($(h),t,a,.4,{y:0,s:1.04});show($(n),t,a+.15,.4,{y:12})});
+}};
+</script></body></html>

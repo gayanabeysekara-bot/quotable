@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.title{left:140px;top:90px}
+.col{top:290px;width:520px;height:620px;padding:36px}
+.step{font-size:24px;font-weight:700;color:var(--accent);letter-spacing:.12em;text-transform:uppercase}
+.st{font-size:38px;font-weight:750;margin:10px 0 26px;line-height:1.15}
+.list .chip{width:100%;margin-bottom:12px;font-size:24px;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 20px}
+.list .chip b{font-size:25px} .list .chip small{font-size:20px;color:var(--mute)}
+.list .chip.on{border-color:var(--accent);background:#2a1d17}
+.bubble{background:#262b36;border-radius:22px 22px 6px 22px;padding:22px 26px;font-size:30px;margin-left:40px}
+.match{margin-top:26px;font-size:26px;color:var(--mute)}
+.run div{font-size:26px;line-height:1.9;white-space:nowrap}
+.cap{left:0;right:0;top:955px;text-align:center;font-size:34px;color:var(--mute)}
+.arrow{top:570px;font-size:56px;color:#3a404c}
+</style></head><body><div class="stage" id="root">
+<div class="abs title" id="title"><div class="kicker">How it works</div><div class="h2" style="margin-top:14px">Claude loads a Skill <span class="acc">only when it's needed</span></div></div>
+<div class="abs panel col" id="c1" style="left:140px"><div class="step">Step 1</div><div class="st">Claude keeps a short list of skills</div>
+ <div class="list" id="list"></div></div>
+<div class="abs arrow" id="a1" style="left:680px">→</div>
+<div class="abs panel col" id="c2" style="left:740px"><div class="step">Step 2</div><div class="st">Your request matches one</div>
+ <div class="bubble" id="ask"></div><div class="match" id="match">↳ matches <b class="acc">weekly-report</b></div></div>
+<div class="abs arrow" id="a2" style="left:1280px">→</div>
+<div class="abs panel col" id="c3" style="left:1340px"><div class="step">Step 3</div><div class="st">It reads the full skill and does the work</div>
+ <div class="run mono" id="run"><div>▸ reading SKILL.md</div><div>▸ fetch_tickets.py</div><div>▸ filling template.md</div><div class="ok">✓ report ready</div></div></div>
+<div class="abs cap" id="cap">Only names and descriptions sit in memory, so you can install many skills.</div>
+</div>
+<script type="module">
+import {P,show,type,edges,fontsReady} from './lib.js';
+const D=12,$=id=>document.getElementById(id);
+const skills=[['release-notes','Write release notes from merged PRs'],['weekly-report','Build the weekly status report'],['code-review','Review a PR with our checklist'],['brand-voice','Rewrite copy in our tone']];
+skills.forEach(([a,b])=>{const d=document.createElement('div');d.className='chip';d.innerHTML=`<b class="mono">${a}</b><small>${b}</small>`;$('list').appendChild(d)});
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,.4);
+  show($('title'),t,.1,.6);
+  show($('c1'),t,.6,.6,{y:50});
+  [...$('list').children].forEach((c,i)=>{show(c,t,1.0+i*.2,.35,{y:14});c.classList.toggle('on',i===1&&t>=5.2)});
+  show($('a1'),t,2.6,.4,{x:-20,y:0});
+  show($('c2'),t,2.8,.6,{y:50});
+  show($('ask'),t,3.4,.4,{y:14});
+  type($('ask'),'Can you do the weekly report?',t,3.5,26,t<5.4);
+  show($('match'),t,5.2,.4,{y:10});
+  show($('a2'),t,6.0,.4,{x:-20,y:0});
+  show($('c3'),t,6.2,.6,{y:50});
+  [...$('run').children].forEach((d,i)=>show(d,t,6.9+i*.55,.3,{x:-14,y:0}));
+  show($('cap'),t,9.3,.6,{y:16});
+}};
+</script></body></html>

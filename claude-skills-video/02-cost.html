@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.title{left:160px;top:120px}
+.card{width:500px;height:300px;top:330px;padding:40px}
+.card .t{font-size:38px;font-weight:700;margin-bottom:14px}
+.card .d{font-size:26px;color:var(--mute);line-height:1.4}
+.card .m{position:absolute;left:40px;bottom:34px;font-size:30px;font-weight:700;color:var(--accent)}
+.loop{position:absolute;right:36px;top:36px;width:56px;height:56px}
+.total{left:0;right:0;top:700px;text-align:center}
+.total b{font-size:110px;font-weight:800;letter-spacing:-.03em}
+.total div{font-size:32px;color:var(--mute);margin-top:6px}
+.what{left:0;right:0;top:450px;text-align:center}
+</style></head><body><div class="stage" id="root">
+<div class="abs title" id="title"><div class="kicker">The hidden cost</div><div class="h2" style="margin-top:14px">Re-explaining the same task</div></div>
+<div id="cards"></div>
+<div class="abs total" id="total"><b><span id="hrs">0.0</span> hours</b><div>a month spent giving the same instructions</div></div>
+<div class="abs what" id="what"><div class="h1">What if Claude<br><span class="acc">already knew how?</span></div></div>
+</div>
+<script type="module">
+import {P,show,edges,fontsReady} from './lib.js';
+const D=9.6,$=id=>document.getElementById(id);
+const tasks=[["Weekly report","Format, sections, tone, word limit…","12 min each"],["Release notes","Pull the changes, group, write for users…","15 min each"],["Code review","Your team's checklist, every PR…","8 min each"]];
+const loop='<svg class="loop" viewBox="0 0 24 24" fill="none" stroke="#e07a55" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>';
+tasks.forEach(([a,b,c],i)=>{const d=document.createElement('div');d.className='abs panel card';d.style.left=(160+i*550)+'px';d.innerHTML=`${loop}<div class="t">${a}</div><div class="d">${b}</div><div class="m">${c}</div>`;$('cards').appendChild(d)});
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,.35);
+  const outA=5.6;
+  show($('title'),t,.1,.6,{y:30,o:outA});
+  [...$('cards').children].forEach((c,i)=>{show(c,t,.7+i*.45,.55,{y:60,s:.92,o:outA});c.querySelector('.loop').style.rotate=(t*120)+'deg'});
+  show($('total'),t,2.4,.6,{y:30,o:outA});
+  $('hrs').textContent=(5.2*P(t,2.5,1.8)).toFixed(1);
+  show($('what'),t,6.0,.7,{y:40,s:.96});
+}};
+</script></body></html>

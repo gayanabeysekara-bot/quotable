@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.title{left:0;right:0;top:150px;text-align:center}
+.steps{left:200px;right:200px;top:370px;display:flex;gap:40px}
+.s{flex:1;padding:40px;height:300px}
+.s .n{font-size:72px;font-weight:800;color:var(--accent);line-height:1}
+.s .t{font-size:38px;font-weight:700;margin-top:24px;line-height:1.2}
+.s .d{font-size:26px;color:var(--mute);margin-top:12px;line-height:1.4}
+.final{left:0;right:0;top:390px;text-align:center}
+.final .h1{font-size:120px}
+.final .body{margin-top:28px}
+.line{left:760px;top:560px;width:400px;height:6px;border-radius:3px;background:var(--accent)}
+</style></head><body><div class="stage" id="root">
+<div id="A">
+<div class="abs title" id="title"><div class="kicker">Start today</div><div class="h2" style="margin-top:14px">Turn your repeat work into Skills</div></div>
+<div class="abs steps">
+ <div class="panel s" id="s1"><div class="n">1</div><div class="t">Spot a task you repeat</div><div class="d">Reports, reviews, release notes…</div></div>
+ <div class="panel s" id="s2"><div class="n">2</div><div class="t">Write the steps in SKILL.md</div><div class="d">Add templates or scripts if it needs them.</div></div>
+ <div class="panel s" id="s3"><div class="n">3</div><div class="t">Share it with your team</div><div class="d">Everyone gets the same result.</div></div>
+</div></div>
+<div class="abs final" id="final"><div class="h1">Teach it <span class="acc">once.</span></div><div class="body">Claude Skills: your know-how, reused every time.</div></div>
+<div class="abs line" id="line"></div>
+</div>
+<script type="module">
+import {P,show,edges,fontsReady} from './lib.js';
+const D=9.6,$=id=>document.getElementById(id);
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,1.0);
+  const out=5.0;
+  show($('title'),t,.1,.6,{o:out});
+  ['s1','s2','s3'].forEach((id,i)=>show($(id),t,.8+i*.5,.55,{y:50,s:.94,o:out}));
+  show($('final'),t,5.5,.8,{y:30,s:.97});
+  const l=P(t,6.3,.8); $('line').style.opacity=l>0?1:0; $('line').style.scale=`${l} 1`;
+  $('line').style.top='620px';
+}};
+</script></body></html>

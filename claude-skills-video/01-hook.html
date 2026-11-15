@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.box{left:360px;width:1200px;top:380px;height:210px;padding:40px 48px;font-size:36px;line-height:1.4}
+.ghost{left:360px;width:1200px;height:210px}
+.count{right:140px;top:110px;text-align:right}
+.count b{font-size:120px;font-weight:800;color:var(--accent);letter-spacing:-.04em;display:block;line-height:1}
+.count span{font-size:28px;color:var(--mute)}
+.head{left:0;right:0;top:700px;text-align:center}
+.label{left:384px;top:330px;font-size:24px;color:var(--mute)}
+</style></head><body><div class="stage" id="root">
+<div class="abs label" id="label">You, again:</div>
+<div id="ghosts"></div>
+<div class="abs panel box" id="box"><span id="txt"></span></div>
+<div class="abs count" id="count"><b id="n">×1</b><span>times this month</span></div>
+<div class="abs head" id="head"><div class="h1">Same instructions.<br><span class="acc">Every single time.</span></div></div>
+</div>
+<script type="module">
+import {P,show,type,edges,clamp,easeOut,fontsReady} from './lib.js';
+const D=7.2, $=id=>document.getElementById(id);
+const text="Summarize this week's tickets in our report format: group by priority, name an owner, keep it under 200 words…";
+const ghosts=$('ghosts');
+for(let i=0;i<6;i++){const g=document.createElement('div');g.className='abs panel ghost';ghosts.appendChild(g)}
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,.35);
+  show($('label'),t,.1,.4,{y:10,o:2.2});
+  show($('box'),t,0,.5,{y:40});
+  type($('txt'),text,t,.35,62,t<3.4);
+  // copies stack behind the box as the count climbs
+  const k=P(t,2.3,1.6,x=>x);
+  [...ghosts.children].forEach((g,i)=>{
+    const p=clamp(k*6-i); g.style.opacity=p*(.55-i*.07);
+    g.style.top=(380-(i+1)*26*easeOut(p))+'px'; g.style.scale=String(1-(i+1)*.025*easeOut(p));
+  });
+  const n=Math.max(1,Math.round(1+46*Math.pow(k,1.6)));
+  $('n').textContent='×'+n;
+  show($('count'),t,2.1,.4,{y:-20});
+  // box and stack lift up for the headline
+  const up=P(t,4.2,.7);
+  $('box').style.translate=`0 ${-150*up}px`; ghosts.style.translate=`0 ${-150*up}px`;
+  show($('head'),t,4.5,.7,{y:40});
+}};
+</script></body></html>

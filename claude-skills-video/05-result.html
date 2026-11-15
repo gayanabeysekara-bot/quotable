@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.title{left:140px;top:90px}
+.side{top:280px;width:780px;height:500px;padding:40px}
+.lab{font-size:26px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.msgs{margin-top:24px}
+.m{border-radius:18px;padding:14px 20px;font-size:24px;margin-bottom:12px;max-width:620px;line-height:1.35}
+.u{background:#262b36;margin-left:auto} .a{background:#1f232c;border:1.5px solid var(--line)}
+.bar{position:absolute;left:40px;bottom:44px;height:18px;border-radius:9px}
+.time{position:absolute;right:40px;top:22px;font-size:56px;font-weight:800;letter-spacing:-.02em}
+.tick div{font-size:28px;line-height:1.9}
+.end{left:0;right:0;top:850px;text-align:center}
+</style></head><body><div class="stage" id="root">
+<div class="abs title" id="title"><div class="kicker">The difference</div><div class="h2" style="margin-top:14px">Same task, <span class="acc">a fraction of the effort</span></div></div>
+<div class="abs panel side" id="L" style="left:140px"><div class="lab" style="color:var(--mute)">Without a skill</div>
+ <div class="msgs" id="lm">
+  <div class="m u">Summarize this week's tickets. Group by priority, add owners, use our format, under 200 words…</div>
+  <div class="m a">Here's a summary…</div>
+  <div class="m u">No — owners go first, and use our headings.</div>
+  <div class="m a">Updated…</div>
+ </div>
+ <div class="time" id="lt" style="color:var(--mute)">25 min</div>
+ <div class="bar" id="lb" style="background:#4a505c"></div></div>
+<div class="abs panel side" id="R" style="left:1000px;border-color:#3b4a43"><div class="lab ok">With a skill</div>
+ <div class="msgs"><div class="m u" id="rq">Weekly report, please.</div></div>
+ <div class="tick mono" id="rt"><div>✓ tickets fetched</div><div>✓ grouped and owners added</div><div class="ok">✓ report in your format</div></div>
+ <div class="time ok" id="rtime">2 min</div>
+ <div class="bar" id="rb" style="background:var(--accent2)"></div></div>
+<div class="abs end" id="end"><div class="h2">Explain it once. <span class="acc">Reuse it every time.</span></div></div>
+</div>
+<script type="module">
+import {P,show,edges,fontsReady} from './lib.js';
+const D=9.6,$=id=>document.getElementById(id);
+window.film={duration:D,ready:fontsReady(),frame(t){
+  edges($('root'),t,D,.3,.4);
+  show($('title'),t,.1,.6);
+  show($('L'),t,.5,.6,{x:-40,y:0});
+  [...$('lm').children].forEach((m,i)=>show(m,t,1.0+i*.6,.35,{y:12}));
+  $('lb').style.width=(700*P(t,1.0,2.6,x=>x))+'px';
+  show($('lt'),t,3.4,.4,{y:10});
+  show($('R'),t,3.9,.6,{x:40,y:0});
+  show($('rq'),t,4.4,.35,{y:12});
+  [...$('rt').children].forEach((d,i)=>show(d,t,4.9+i*.4,.3,{x:-12,y:0}));
+  $('rb').style.width=(56*P(t,4.9,1.2))+'px';
+  show($('rtime'),t,6.0,.4,{y:10,s:.8});
+  show($('end'),t,6.9,.7,{y:30});
+}};
+</script></body></html>
