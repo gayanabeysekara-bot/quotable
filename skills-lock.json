@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "openfilm": {
+      "source": "openfilm/openfilm",
+      "sourceType": "github",
+      "skillPath": "skills/openfilm/SKILL.md",
+      "computedHash": "c5a254e8aed6cbfd2098cae414081fa155b6e22fbd409a4460f8931565729fb1"
+    }
+  }
+}
