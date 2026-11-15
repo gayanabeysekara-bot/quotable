@@ -5,6 +5,6 @@ description: Make videos as web pages with OpenFilm. Use when the user asks for 
 
 # OpenFilm
 
-Run `npx -y openfilm@latest` and follow the manual it prints: a page that names OpenFilm's own skills, how a film is
+Run `npx -y openfilm@0.3.2` and follow the manual it prints: a page that names OpenFilm's own skills, how a film is
 made, its media and its canvas. Read the one a task needs before you start it, and run the manual again whenever you
 need it.
